@@ -17,12 +17,12 @@ import {
 // TODO: pegar config web de gymteck-1708f
 // (Firebase Console -> Configuración del proyecto -> Tus apps -> App web -> SDK config)
 const firebaseConfig = {
-  apiKey: 'TODO_PEGAR_API_KEY',
+  apiKey: 'AIzaSyB2J1OWnB1dfCSuSrYJ8v_znJfn4Nxxcx8',
   authDomain: 'gymteck-1708f.firebaseapp.com',
   projectId: 'gymteck-1708f',
-  storageBucket: 'gymteck-1708f.appspot.com',
-  messagingSenderId: 'TODO_PEGAR_MESSAGING_SENDER_ID',
-  appId: 'TODO_PEGAR_APP_ID',
+  storageBucket: 'gymteck-1708f.firebasestorage.app',
+  messagingSenderId: '215690790783',
+  appId: '1:215690790783:web:ee894c5ca1942a5b96bc4a',
 }
 
 const app = initializeApp(firebaseConfig)
