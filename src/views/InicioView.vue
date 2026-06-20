@@ -1,6 +1,6 @@
 <script setup>
 // HOME de la app: resuelve la vinculación del socio y muestra membresía + saldo.
-import { onMounted, computed } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
@@ -30,6 +30,36 @@ async function cerrarSesion() {
 
 function irACheckin() {
   router.push('/checkin')
+}
+
+// --- Aviso de vinculación del claim (no bloqueante) ---
+const reenviando = ref(false)
+const reenviado = ref(false)
+const reenviarError = ref('')
+const reintentando = ref(false)
+
+async function reenviarVerificacion() {
+  if (reenviando.value) return
+  reenviando.value = true
+  reenviarError.value = ''
+  try {
+    await auth.reenviarVerificacion()
+    reenviado.value = true
+  } catch {
+    reenviarError.value = 'No pudimos reenviar el correo. Inténtalo en un momento.'
+  } finally {
+    reenviando.value = false
+  }
+}
+
+async function reintentarVinculo() {
+  if (reintentando.value) return
+  reintentando.value = true
+  try {
+    await socio.reintentarClaim()
+  } finally {
+    reintentando.value = false
+  }
 }
 </script>
 
@@ -80,6 +110,39 @@ function irACheckin() {
 
     <!-- Vinculado: home -->
     <template v-else-if="socio.estaVinculado">
+      <!-- Aviso no bloqueante: el claim no se pudo asignar (la lectura ya funciona) -->
+      <section v-if="socio.avisoClaim" class="aviso" role="status">
+        <span class="aviso__icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.3 3.7 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" />
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+          </svg>
+        </span>
+        <div class="aviso__body">
+          <p class="aviso__text">{{ socio.avisoClaim }}</p>
+          <div class="aviso__acciones">
+            <button
+              v-if="socio.claimEstado === 'no_verificado'"
+              class="aviso__btn"
+              :disabled="reenviando || reenviado"
+              @click="reenviarVerificacion"
+            >
+              {{ reenviado ? 'Correo enviado' : reenviando ? 'Enviando…' : 'Reenviar verificación' }}
+            </button>
+            <button
+              class="aviso__btn aviso__btn--ghost"
+              :disabled="reintentando"
+              @click="reintentarVinculo"
+            >
+              {{ reintentando ? 'Reintentando…' : 'Reintentar' }}
+            </button>
+          </div>
+          <p v-if="reenviarError" class="aviso__err">{{ reenviarError }}</p>
+        </div>
+      </section>
+
       <header class="inicio__head">
         <p class="inicio__hi">Hola,</p>
         <h1 class="inicio__name">{{ primerNombre }}</h1>
@@ -148,6 +211,40 @@ function irACheckin() {
 }
 .no-vinculado__title { color: var(--text); font-size: 1.25rem; font-weight: 800; }
 .no-vinculado__text { max-width: 32ch; }
+
+/* Aviso no bloqueante de vinculación */
+.aviso {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(255, 184, 76, 0.45);
+  background: rgba(255, 184, 76, 0.1);
+}
+.aviso__icon {
+  flex-shrink: 0;
+  color: #ffb84c;
+  filter: drop-shadow(0 0 6px rgba(255, 184, 76, 0.5));
+}
+.aviso__body { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.aviso__text { color: var(--text); font-size: 0.92rem; line-height: 1.4; }
+.aviso__acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.aviso__btn {
+  padding: 8px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid #ffb84c;
+  background: #ffb84c;
+  color: #1a1206;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.aviso__btn--ghost {
+  background: transparent;
+  color: #ffb84c;
+}
+.aviso__btn:disabled { opacity: 0.6; cursor: default; }
+.aviso__err { color: var(--danger); font-size: 0.82rem; }
 
 .inicio__head { margin-top: 6px; }
 .inicio__hi { color: var(--text-dim); font-size: 1.05rem; }

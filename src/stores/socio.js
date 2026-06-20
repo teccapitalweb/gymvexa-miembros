@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuthStore } from './auth'
+import { vincularSocioEnBackend } from '../services/backend'
 
 // Mantenemos la función de baja del listener fuera del state (no es serializable).
 let _unsubSocio = null
@@ -27,6 +28,13 @@ export const useSocioStore = defineStore('socio', {
     resuelto: false,      // true cuando ya intentamos vincular al menos una vez
     noVinculado: false,   // true si el email no corresponde a ningún socio
     error: '',            // mensaje de error legible en español
+
+    // --- Estado del CLAIM de socio (credencial segura para ESCRITURAS) ---
+    // La lectura de datos funciona aunque el claim falle; el claim es necesario
+    // para guardar rutinas/entrenamientos en el futuro.
+    claimOk: false,       // true si el backend asignó/confirmó el claim
+    claimEstado: 'pendiente', // 'pendiente'|'ok'|'no_verificado'|'conflicto'|'sesion'|'error'|'no_socio'
+    avisoClaim: '',       // aviso amable cuando el claim no se pudo asignar (no bloquea lectura)
   }),
 
   getters: {
@@ -60,6 +68,11 @@ export const useSocioStore = defineStore('socio', {
       this.cargando = true
       this.error = ''
       this.noVinculado = false
+
+      // Asegura el claim de socio ANTES de leer/suscribir, para que el token ya
+      // lo lleve. Nunca rompe el flujo de lectura (su propio try/catch interno).
+      await this._asegurarClaim()
+
       try {
         const q = query(
           collectionGroup(db, 'socios'),
@@ -92,6 +105,49 @@ export const useSocioStore = defineStore('socio', {
         this.cargando = false
         this.resuelto = true
       }
+    },
+
+    // Llama al backend para asignar/confirmar el claim { gymId, socioId, rol }.
+    // Refleja el resultado en claimOk/claimEstado/avisoClaim SIN lanzar: la
+    // lectura de datos debe seguir funcionando aunque el claim no se asigne.
+    async _asegurarClaim() {
+      this.claimEstado = 'pendiente'
+      this.avisoClaim = ''
+      this.claimOk = false
+      try {
+        await vincularSocioEnBackend()
+        this.claimOk = true
+        this.claimEstado = 'ok'
+      } catch (e) {
+        const status = e?.status ?? null
+        if (status === 404) {
+          // El backend no encontró socio con este correo. El lookup de abajo lo
+          // reflejará como "noVinculado"; no mostramos aviso adicional.
+          this.claimEstado = 'no_socio'
+        } else if (status === 403) {
+          this.claimEstado = 'no_verificado'
+          this.avisoClaim =
+            'Verifica tu correo electrónico para activar el guardado de tus entrenamientos.'
+        } else if (status === 409) {
+          this.claimEstado = 'conflicto'
+          this.avisoClaim =
+            e?.message ||
+            'No pudimos vincular tu cuenta. Revisa el mensaje e inténtalo de nuevo.'
+        } else if (status === 401) {
+          this.claimEstado = 'sesion'
+          this.avisoClaim =
+            'Tu sesión expiró. Cierra sesión y vuelve a entrar para sincronizar tu cuenta.'
+        } else {
+          this.claimEstado = 'error'
+          this.avisoClaim =
+            'No pudimos sincronizar tu cuenta. Puedes ver tus datos, pero guardar entrenamientos podría no estar disponible aún.'
+        }
+      }
+    },
+
+    // Reintenta solo la vinculación del claim (sin recargar todo).
+    async reintentarClaim() {
+      await this._asegurarClaim()
     },
 
     // Escucha en vivo el documento del socio (saldo, membresía, visitas).
@@ -129,6 +185,9 @@ export const useSocioStore = defineStore('socio', {
       this.resuelto = false
       this.noVinculado = false
       this.error = ''
+      this.claimOk = false
+      this.claimEstado = 'pendiente'
+      this.avisoClaim = ''
     },
 
     _mensajeError(e) {

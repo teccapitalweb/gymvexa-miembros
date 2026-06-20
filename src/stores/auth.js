@@ -8,6 +8,7 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  sendEmailVerification,
 } from 'firebase/auth'
 import { auth, googleProvider } from '../firebase'
 
@@ -22,6 +23,7 @@ export const useAuthStore = defineStore('auth', {
     estaLogueado: (state) => !!state.user,
     uid: (state) => state.user?.uid ?? null,
     correo: (state) => state.user?.email ?? null,
+    emailVerificado: (state) => state.user?.emailVerified ?? false,
   },
 
   actions: {
@@ -63,6 +65,14 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.cargando = false
       }
+    },
+
+    // Reenvía el correo de verificación al usuario actual (para el flujo en que
+    // el backend rechaza la vinculación por email no verificado).
+    async reenviarVerificacion() {
+      const user = auth.currentUser
+      if (!user) throw new Error('No hay una sesión activa.')
+      await sendEmailVerification(user)
     },
   },
 })
