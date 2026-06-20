@@ -18,7 +18,18 @@ const routes = [
     component: () => import('../views/InicioView.vue'),
     meta: { requiereSocio: true },
   },
-  // Las siguientes pantallas (check-in, perfil) se construyen en el próximo paso.
+  {
+    path: '/checkin',
+    name: 'checkin',
+    component: () => import('../views/CheckinView.vue'),
+    meta: { requiereSocio: true },
+  },
+  {
+    path: '/perfil',
+    name: 'perfil',
+    component: () => import('../views/PerfilView.vue'),
+    meta: { requiereSocio: true },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/inicio' },
 ]
 

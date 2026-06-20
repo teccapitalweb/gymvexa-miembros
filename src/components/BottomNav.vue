@@ -1,7 +1,5 @@
 <script setup>
 // Barra de navegación inferior tipo app (móvil).
-// Por ahora solo visual: Inicio está conectado; Check-in y Perfil son
-// placeholders que conectaremos en el siguiente paso.
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
 
@@ -10,8 +8,8 @@ const activo = computed(() => route.name)
 
 const items = [
   { name: 'inicio', label: 'Inicio', to: '/inicio', icon: 'inicio', activable: true },
-  { name: 'checkin', label: 'Check-in', to: '/inicio', icon: 'checkin', activable: false },
-  { name: 'perfil', label: 'Perfil', to: '/inicio', icon: 'perfil', activable: false },
+  { name: 'checkin', label: 'Check-in', to: '/checkin', icon: 'checkin', activable: true },
+  { name: 'perfil', label: 'Perfil', to: '/perfil', icon: 'perfil', activable: true },
 ]
 </script>
 
