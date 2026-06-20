@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Viewport móvil: ancho del dispositivo + viewport-fit para áreas seguras (notch). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <!-- Apariencia oscura y barra de estado integrada en móvil. -->
+    <meta name="theme-color" content="#070b16" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Comportamiento tipo app al guardar en pantalla de inicio (iOS). -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Gymvexa" />
+
+    <!-- TODO (PWA, siguiente paso): agregar manifest e iconos y registrar service worker.
+         <link rel="manifest" href="/manifest.webmanifest" /> -->
+
+    <title>Gymvexa</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
