@@ -63,10 +63,23 @@ const items = [
   right: 0;
   bottom: 0;
   z-index: 50;
-  background: rgba(13, 20, 38, 0.92);
-  backdrop-filter: blur(14px);
-  border-top: 1px solid var(--border);
+  background: rgba(10, 16, 30, 0.82);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-top: 1px solid var(--border-soft);
   padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+/* Línea de glow superior sutil. */
+.bottom-nav::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
 }
 
 .bottom-nav__inner {
@@ -76,6 +89,7 @@ const items = [
   height: var(--nav-h);
   display: flex;
   align-items: stretch;
+  padding: 0 8px;
 }
 
 .nav-item {
@@ -85,28 +99,43 @@ const items = [
   align-items: center;
   justify-content: center;
   gap: 4px;
-  color: var(--text-dim);
-  font-size: 0.7rem;
+  color: var(--text-faint);
+  font-size: 0.68rem;
   font-weight: 600;
-  transition: color 0.18s ease;
+  letter-spacing: 0.01em;
+  transition: color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nav-item__icon {
   position: relative;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s ease;
 }
+
+.nav-item:active .nav-item__icon { transform: scale(0.88); }
 
 .nav-item--active {
   color: var(--accent-bright);
 }
 
-/* Glow sutil bajo el ícono activo */
+/* Pill resaltado con glow del acento bajo el ícono activo */
+.nav-item--active .nav-item__icon {
+  background: var(--accent-soft);
+  box-shadow: 0 0 18px var(--accent-glow), inset 0 0 0 1px rgba(91, 155, 255, 0.3);
+}
 .nav-item--active .nav-item__icon::after {
   content: '';
   position: absolute;
-  inset: -8px;
+  inset: -10px;
   border-radius: var(--r-pill);
   background: radial-gradient(circle, var(--accent-glow), transparent 70%);
   z-index: -1;
+  opacity: 0.8;
 }
 </style>

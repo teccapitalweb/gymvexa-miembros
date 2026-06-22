@@ -66,11 +66,15 @@ async function entrarConGoogle() {
 
 <template>
   <main class="screen login">
-    <div class="login__top">
+    <!-- Halo decorativo de fondo -->
+    <div class="login__halo" aria-hidden="true"></div>
+
+    <div class="login__top stagger">
       <!-- Logo: marca Gymvexa con glow -->
       <div class="brand">
         <span class="brand__mark">
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+          <span class="brand__ring" aria-hidden="true"></span>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2.1"
                stroke-linecap="round" stroke-linejoin="round">
             <path d="M6.5 9v6" />
@@ -80,12 +84,15 @@ async function entrarConGoogle() {
             <path d="M20.5 10.5v3" />
           </svg>
         </span>
-        <div class="brand__text">
-          <h1 class="brand__name">Gymvexa</h1>
-          <p class="brand__sub">Miembros</p>
-        </div>
       </div>
-      <p class="login__welcome">Inicia sesión para registrar tu asistencia y ver tu membresía.</p>
+      <div class="brand__text">
+        <h1 class="brand__name display">Gymvexa</h1>
+        <p class="brand__sub">Miembros</p>
+      </div>
+      <p class="login__welcome">
+        Tu entrenamiento empieza aquí. Inicia sesión para registrar tu
+        asistencia y ver tu membresía.
+      </p>
     </div>
 
     <form class="login__form card" @submit.prevent="entrar">
@@ -176,65 +183,106 @@ async function entrarConGoogle() {
   gap: 26px;
 }
 
+/* Halo radial detrás del contenido. */
+.login__halo {
+  position: absolute;
+  top: -6%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-glow), transparent 62%);
+  filter: blur(20px);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .login__top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
+  gap: 8px;
 }
 
 .brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 6px;
 }
 
 .brand__mark {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: var(--r-md);
+  width: 76px;
+  height: 76px;
+  border-radius: var(--r-lg);
   color: #fff;
-  background: linear-gradient(180deg, var(--accent-bright), var(--accent));
-  box-shadow: 0 8px 26px var(--accent-glow);
+  background: linear-gradient(140deg, var(--cyan), var(--accent-bright) 45%, var(--accent-deep));
+  box-shadow: 0 14px 40px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
-.brand__text {
-  text-align: left;
-  line-height: 1.05;
+/* Anillo de glow que late suavemente. */
+.brand__ring {
+  position: absolute;
+  inset: -7px;
+  border-radius: calc(var(--r-lg) + 7px);
+  border: 1.5px solid var(--accent-soft);
+  box-shadow: 0 0 26px var(--accent-glow);
+  animation: brandPulse 3.2s ease-in-out infinite;
 }
+
+@keyframes brandPulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%      { opacity: 0.9; transform: scale(1.04); }
+}
+
+.brand__text { line-height: 1.05; }
 
 .brand__name {
-  font-size: 1.7rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: 2.3rem;
+  background: linear-gradient(180deg, #ffffff, #c7d8f5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .brand__sub {
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.72rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: var(--accent-bright);
+  letter-spacing: 0.36em;
+  color: var(--cyan-bright);
+  margin-top: 4px;
 }
 
 .login__welcome {
   color: var(--text-dim);
-  font-size: 0.95rem;
-  max-width: 30ch;
-  margin: 0 auto;
+  font-size: 0.96rem;
+  max-width: 32ch;
+  margin: 8px auto 0;
 }
 
 .login__form {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 22px;
+  padding: 24px 22px;
+  animation: rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.18s;
 }
 
 .login__foot {
+  position: relative;
+  z-index: 1;
   text-align: center;
   font-size: 0.82rem;
-  color: var(--text-dim);
+  color: var(--text-faint);
 }
 </style>

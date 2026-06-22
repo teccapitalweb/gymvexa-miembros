@@ -10,8 +10,10 @@ const mostrarNav = computed(() => !route.meta.publica)
 </script>
 
 <template>
-  <router-view v-slot="{ Component }">
-    <component :is="Component" />
+  <router-view v-slot="{ Component, route }">
+    <transition name="page" mode="out-in">
+      <component :is="Component" :key="route.name" />
+    </transition>
   </router-view>
   <BottomNav v-if="mostrarNav" />
 </template>

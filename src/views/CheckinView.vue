@@ -134,9 +134,11 @@ function horaLegible(fecha) {
     <!-- Resultado exitoso -->
     <section v-if="resultado && resultado.ok" class="card resultado">
       <span class="resultado__check">
+        <span class="resultado__ripple" aria-hidden="true"></span>
+        <span class="resultado__ripple resultado__ripple--2" aria-hidden="true"></span>
         <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="m5 13 4 4L19 7" />
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path class="resultado__tick" d="m5 13 4 4L19 7" />
         </svg>
       </span>
       <h2 class="resultado__title">¡Asistencia registrada!</h2>
@@ -162,10 +164,20 @@ function horaLegible(fecha) {
 
     <!-- Flujo de cámara -->
     <template v-else>
-      <div class="lector-marco">
+      <div class="lector-marco" :class="{ 'lector-marco--activo': escaneando }">
         <div :id="ID_LECTOR" class="lector"></div>
+
+        <!-- Guías de esquina estilizadas -->
+        <div class="guias" aria-hidden="true">
+          <span class="guia guia--tl"></span>
+          <span class="guia guia--tr"></span>
+          <span class="guia guia--bl"></span>
+          <span class="guia guia--br"></span>
+          <span v-if="escaneando" class="guia__laser"></span>
+        </div>
+
         <div v-if="!escaneando && !iniciando" class="lector__placeholder">
-          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 9V6a2 2 0 0 1 2-2h3" />
             <path d="M21 9V6a2 2 0 0 0-2-2h-3" />
@@ -173,7 +185,15 @@ function horaLegible(fecha) {
             <path d="M21 15v3a2 2 0 0 1-2 2h-3" />
             <rect x="8" y="8" width="8" height="8" rx="1.5" />
           </svg>
-          <span>La cámara aparecerá aquí</span>
+          <span>Apunta al código QR de tu gimnasio</span>
+        </div>
+
+        <div v-if="iniciando" class="lector__placeholder lector__placeholder--load">
+          <svg class="spin" width="34" height="34" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <path d="M21 12a9 9 0 1 1-6.2-8.5" />
+          </svg>
+          <span>Iniciando cámara…</span>
         </div>
       </div>
 
@@ -215,23 +235,57 @@ function horaLegible(fecha) {
 </template>
 
 <style scoped>
-.checkin { gap: 18px; }
+.checkin { gap: 20px; }
 .checkin__head { margin-top: 6px; text-align: center; }
-.checkin__title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; }
-.checkin__sub { color: var(--text-dim); font-size: 0.95rem; }
+.checkin__title { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; }
+.checkin__sub { color: var(--text-dim); font-size: 0.95rem; margin-top: 2px; }
 
 .lector-marco {
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-xl);
   overflow: hidden;
   background: #000;
   border: 1px solid var(--border);
   box-shadow: var(--glow-accent);
+  transition: box-shadow 0.3s ease;
+}
+.lector-marco--activo {
+  box-shadow: 0 0 0 1px var(--accent-soft), 0 0 50px var(--accent-glow);
 }
 .lector { width: 100%; height: 100%; }
 .lector :deep(video) { width: 100% !important; height: 100% !important; object-fit: cover; }
+.lector :deep(img) { display: none; } /* oculta el ícono por defecto de la lib */
+
+/* Guías de esquina + láser */
+.guias { position: absolute; inset: 0; pointer-events: none; }
+.guia {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--cyan);
+  filter: drop-shadow(0 0 6px var(--cyan-glow));
+}
+.guia--tl { top: 22px; left: 22px; border-right: 0; border-bottom: 0; border-top-left-radius: 12px; }
+.guia--tr { top: 22px; right: 22px; border-left: 0; border-bottom: 0; border-top-right-radius: 12px; }
+.guia--bl { bottom: 22px; left: 22px; border-right: 0; border-top: 0; border-bottom-left-radius: 12px; }
+.guia--br { bottom: 22px; right: 22px; border-left: 0; border-top: 0; border-bottom-right-radius: 12px; }
+
+.guia__laser {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan-bright), transparent);
+  box-shadow: 0 0 14px var(--cyan-glow);
+  animation: laser 2.4s ease-in-out infinite;
+}
+@keyframes laser {
+  0%, 100% { top: 30px; opacity: 0.4; }
+  50%      { top: calc(100% - 30px); opacity: 1; }
+}
 
 .lector__placeholder {
   position: absolute;
@@ -240,35 +294,73 @@ function horaLegible(fecha) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
   color: var(--text-dim);
-  background: var(--bg-elev);
-  font-size: 0.9rem;
+  background:
+    radial-gradient(420px 280px at 50% 40%, rgba(59, 130, 246, 0.12), transparent 70%),
+    var(--bg-elev);
+  font-size: 0.92rem;
+  text-align: center;
+  padding: 0 32px;
 }
+.lector__placeholder svg { color: var(--accent-bright); opacity: 0.85; }
+.lector__placeholder--load svg { color: var(--cyan-bright); }
 
-/* Resultado */
+/* Resultado con animación de éxito satisfactoria */
 .resultado {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: 10px;
-  padding: 30px 22px;
+  padding: 34px 22px;
+  animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .resultado__check {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 78px;
-  height: 78px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
-  color: #fff;
-  background: linear-gradient(180deg, #43e0b4, var(--success));
-  box-shadow: 0 0 0 6px rgba(47, 214, 166, 0.15), 0 10px 30px rgba(47, 214, 166, 0.4);
-  margin-bottom: 6px;
+  color: #04231a;
+  background: linear-gradient(160deg, #5cf2cd, var(--success));
+  box-shadow: 0 0 0 8px rgba(47, 224, 173, 0.14), 0 12px 36px var(--success-glow);
+  margin-bottom: 8px;
+  animation: pop 0.5s cubic-bezier(0.18, 1.4, 0.4, 1) both;
 }
-.resultado__title { font-size: 1.4rem; font-weight: 800; }
-.resultado__nombre { font-size: 1.05rem; font-weight: 600; }
+@keyframes pop {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+/* Trazo animado del check. */
+.resultado__tick {
+  stroke-dasharray: 26;
+  stroke-dashoffset: 26;
+  animation: draw 0.4s 0.22s ease forwards;
+}
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
+/* Ondas que se expanden. */
+.resultado__ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--success);
+  animation: ripple 1.1s ease-out 0.2s forwards;
+  opacity: 0;
+}
+.resultado__ripple--2 { animation-delay: 0.45s; }
+@keyframes ripple {
+  0%   { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+.resultado__title { font-family: var(--font-display); font-size: 1.45rem; font-weight: 800; }
+.resultado__nombre { font-size: 1.1rem; font-weight: 700; }
 .resultado__hora { color: var(--text-dim); font-size: 0.9rem; }
 
 .aviso {
@@ -276,20 +368,20 @@ function horaLegible(fecha) {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 12px 14px;
-  border-radius: var(--r-sm);
+  padding: 13px 15px;
+  border-radius: var(--r-md);
   font-size: 0.92rem;
   font-weight: 600;
-  margin: 8px 0 4px;
+  margin: 10px 0 4px;
 }
 .aviso--ok {
-  background: rgba(47, 214, 166, 0.12);
-  border: 1px solid rgba(47, 214, 166, 0.35);
+  background: rgba(47, 224, 173, 0.12);
+  border: 1px solid rgba(47, 224, 173, 0.35);
   color: #7df0cf;
 }
 .aviso--alerta {
-  background: rgba(255, 84, 112, 0.12);
-  border: 1px solid rgba(255, 84, 112, 0.35);
+  background: rgba(255, 90, 118, 0.12);
+  border: 1px solid rgba(255, 90, 118, 0.35);
   color: #ffb3c0;
 }
 </style>
