@@ -22,6 +22,32 @@ const tieneDeuda = computed(() => Number(deudaCentavos.value) > 0)
 
 const primerNombre = computed(() => (socio.nombreSocio || '').split(' ')[0] || 'socio')
 
+// Barra de progreso del periodo de membresía — SOLO presentación, sin lecturas
+// nuevas: lee del snapshot ya cargado. Si no hay fecha de inicio, devuelve null
+// y la barra simplemente no se muestra.
+function aFechaLocal(v) {
+  if (!v) return null
+  if (typeof v?.toDate === 'function') return v.toDate()
+  if (v instanceof Date) return v
+  if (typeof v === 'number') return new Date(v)
+  if (typeof v === 'string') {
+    const d = new Date(v)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  if (typeof v?.seconds === 'number') return new Date(v.seconds * 1000)
+  return null
+}
+const progreso = computed(() => {
+  const m = socio.estadoMembresia
+  if (!m) return null
+  const ini = aFechaLocal(m.fechaInicio ?? m.fechaInicioMembresia ?? m.inicio ?? null)
+  const fin = membresia.value.fechaFin
+  if (!ini || !fin || fin <= ini) return null
+  const total = fin.getTime() - ini.getTime()
+  const transcurrido = Date.now() - ini.getTime()
+  return Math.min(100, Math.max(0, Math.round((transcurrido / total) * 100)))
+})
+
 async function cerrarSesion() {
   socio.reset()
   await auth.logout()
@@ -157,21 +183,30 @@ async function reintentarVinculo() {
           </span>
         </header>
 
-        <!-- Tarjeta héroe de membresía -->
+        <!-- Tarjeta de membresía (objeto firma, estilo wallet) -->
         <section class="card mcard" :class="`mcard--${membresia.tono}`">
-          <div class="mcard__glow" aria-hidden="true"></div>
+          <div class="mcard__sheen" aria-hidden="true"></div>
           <div class="mcard__top">
+            <span class="mcard__brand">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6.5 9v6" /><path d="M17.5 9v6" /><path d="M6.5 12h11" />
+                <path d="M3.5 10.5v3" /><path d="M20.5 10.5v3" />
+              </svg>
+              Membresía
+            </span>
             <span class="chip" :class="`chip--${membresia.tono}`">
               <span class="chip__dot"></span>
               {{ membresia.vigente ? 'Activa' : 'Vencida' }}
             </span>
-            <span class="mcard__label kicker">Membresía</span>
           </div>
 
           <!-- Número grande: días restantes / estado -->
           <div class="mcard__hero">
             <template v-if="membresia.vigente && membresia.dias !== null && membresia.dias >= 0">
-              <span class="mcard__num metric">{{ membresia.dias }}</span>
+              <span class="mcard__num metric-xl" :class="{ 'num-gradient': membresia.tono === 'verde' }">
+                {{ membresia.dias }}
+              </span>
               <span class="mcard__unit">{{ membresia.dias === 1 ? 'día restante' : 'días restantes' }}</span>
             </template>
             <template v-else>
@@ -179,52 +214,53 @@ async function reintentarVinculo() {
             </template>
           </div>
 
-          <p v-if="membresia.plan" class="mcard__plan">{{ membresia.plan }}</p>
-          <p v-else class="mcard__plan mcard__plan--dim">Plan no especificado</p>
+          <!-- Barra de progreso del periodo (solo si hay fecha de inicio en los datos) -->
+          <div v-if="progreso !== null" class="mcard__bar" aria-hidden="true">
+            <span class="mcard__bar-fill" :style="{ width: progreso + '%' }"></span>
+          </div>
+
+          <p class="mcard__plan" :class="{ 'mcard__plan--dim': !membresia.plan }">
+            {{ membresia.plan || 'Plan no especificado' }}
+          </p>
         </section>
 
-        <!-- Tarjeta de saldo (monedero) -->
+        <!-- Saldo (estilo balance) -->
         <section class="card saldo">
-          <div class="saldo__main">
-            <span class="kicker">Saldo a favor</span>
-            <span class="saldo__monto metric">{{ centavosAPesos(saldoCentavos) }}</span>
+          <div class="saldo__row">
+            <div class="saldo__main">
+              <span class="kicker">Saldo a favor</span>
+              <span class="saldo__monto metric">{{ centavosAPesos(saldoCentavos) }}</span>
+            </div>
+            <span class="saldo__icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2" />
+                <rect x="3" y="7" width="18" height="13" rx="2.5" />
+                <path d="M16 12.5h2.5" />
+              </svg>
+            </span>
           </div>
-          <span class="saldo__icon" aria-hidden="true">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2" />
-              <rect x="3" y="7" width="18" height="13" rx="2.5" />
-              <path d="M16 12.5h2.5" />
-            </svg>
-          </span>
           <div v-if="tieneDeuda" class="saldo__deuda">
             <span class="saldo__label">Adeudo</span>
             <span class="saldo__monto--deuda">{{ centavosAPesos(deudaCentavos) }}</span>
           </div>
         </section>
 
-        <!-- Accesos rápidos -->
-        <div class="accesos">
-          <router-link to="/perfil" class="acceso">
-            <span class="acceso__icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 20c0-3.5 3.6-6 8-6s8 2.5 8 6" />
-              </svg>
-            </span>
-            <span class="acceso__label">Mi perfil</span>
-          </router-link>
-          <router-link to="/perfil" class="acceso">
-            <span class="acceso__icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 12h4l2.5 7L14 4l2.5 8H21" />
-              </svg>
-            </span>
-            <span class="acceso__label">Actividad</span>
-          </router-link>
-        </div>
+        <!-- Acceso rápido: Mi perfil (se quitó "Actividad", que duplicaba el enlace) -->
+        <router-link to="/perfil" class="acceso">
+          <span class="acceso__icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c0-3.5 3.6-6 8-6s8 2.5 8 6" />
+            </svg>
+          </span>
+          <span class="acceso__label">Mi perfil</span>
+          <svg class="acceso__arrow" width="20" height="20" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </router-link>
 
         <!-- CTA check-in (protagonista) -->
         <button class="btn btn--primary cta-checkin" @click="irACheckin">
@@ -333,26 +369,20 @@ async function reintentarVinculo() {
 .inicio__pulse--ambar { color: var(--warn); }
 .inicio__pulse--rojo  { color: var(--danger); }
 
-/* Tarjeta héroe de membresía con tono según vigencia */
+/* Tarjeta de membresía (objeto firma, estilo wallet) */
 .mcard {
   position: relative;
   overflow: hidden;
-  padding: 22px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
-/* Glow superior según el tono. */
-.mcard__glow {
+/* Acento contenido: gradiente fino en una esquina (no blob de glow). */
+.mcard__sheen {
   position: absolute;
-  top: -60%;
-  right: -20%;
-  width: 320px;
-  height: 320px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-glow), transparent 60%);
-  opacity: 0.32;
+  inset: 0;
   pointer-events: none;
+  background: radial-gradient(140% 90% at 100% 0%, rgba(76, 141, 255, 0.16), transparent 55%);
 }
 .mcard__top {
   position: relative;
@@ -360,7 +390,17 @@ async function reintentarVinculo() {
   align-items: center;
   justify-content: space-between;
 }
-.mcard__label { color: var(--text-faint); }
+.mcard__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+}
+.mcard__brand svg { color: var(--accent-bright); }
 
 .mcard__hero {
   position: relative;
@@ -369,80 +409,90 @@ async function reintentarVinculo() {
   gap: 10px;
   flex-wrap: wrap;
 }
-.mcard__num {
-  font-size: 4.2rem;
-  background: linear-gradient(180deg, #ffffff, #c8d8f5);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
+.mcard__num { color: var(--text); }   /* tamaño = .metric-xl; color según tono */
 .mcard__unit { color: var(--text-dim); font-size: 0.98rem; font-weight: 600; }
 .mcard__estado { font-family: var(--font-display); font-weight: 800; font-size: 1.7rem; letter-spacing: -0.02em; }
 .mcard__plan { position: relative; color: var(--text-dim); font-size: 0.95rem; }
 .mcard__plan--dim { opacity: 0.7; }
 
-.mcard--verde { border-color: rgba(47, 224, 173, 0.4); }
-.mcard--verde .mcard__glow { background: radial-gradient(circle, var(--success-glow), transparent 60%); }
+/* Barra de progreso del periodo (solo si hay fecha de inicio). */
+.mcard__bar {
+  position: relative;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.mcard__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--grad-firma);
+}
+
+/* Tono por vigencia: borde sutil + color del número/estado/barra. */
+.mcard--verde { border-color: rgba(43, 224, 166, 0.28); }
 .mcard--verde .mcard__estado { color: var(--success); }
-.mcard--ambar { border-color: rgba(255, 184, 76, 0.45); }
-.mcard--ambar .mcard__glow { background: radial-gradient(circle, var(--warn-glow), transparent 60%); }
-.mcard--ambar .mcard__num { -webkit-text-fill-color: var(--warn); }
+.mcard--ambar { border-color: rgba(255, 194, 75, 0.3); }
+.mcard--ambar .mcard__num { color: var(--warn); }
 .mcard--ambar .mcard__estado { color: var(--warn); }
-.mcard--rojo { border-color: rgba(255, 90, 118, 0.45); }
-.mcard--rojo .mcard__glow { background: radial-gradient(circle, var(--danger-glow), transparent 60%); }
-.mcard--rojo .mcard__num { -webkit-text-fill-color: var(--danger); }
+.mcard--ambar .mcard__bar-fill { background: var(--warn); }
+.mcard--rojo { border-color: rgba(255, 92, 114, 0.3); }
+.mcard--rojo .mcard__num { color: var(--danger); }
 .mcard--rojo .mcard__estado { color: var(--danger); }
+.mcard--rojo .mcard__bar-fill { background: var(--danger); }
 .mcard--gris .mcard__estado { color: var(--text-dim); }
 
-/* Tarjeta de saldo (monedero) */
+/* Saldo (estilo balance) */
 .saldo {
   position: relative;
-  overflow: hidden;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.saldo__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  flex-wrap: wrap;
 }
-.saldo__main { display: flex; flex-direction: column; gap: 8px; }
-.saldo__monto { font-size: 2.1rem; color: var(--success); text-shadow: 0 0 22px var(--success-glow); }
+.saldo__main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.saldo__monto { font-size: 2.1rem; color: var(--success); }
 .saldo__icon {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 50px;
-  height: 50px;
+  width: 46px;
+  height: 46px;
   border-radius: var(--r-md);
   color: var(--success);
-  background: rgba(47, 224, 173, 0.1);
-  border: 1px solid rgba(47, 224, 173, 0.28);
+  background: var(--success-soft);
+  border: 1px solid rgba(43, 224, 166, 0.25);
 }
 .saldo__deuda {
-  width: 100%;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   padding-top: 14px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--line);
 }
 .saldo__label { color: var(--text-dim); font-size: 0.92rem; }
 .saldo__monto--deuda { color: var(--danger); font-weight: 800; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 
-/* Accesos rápidos */
-.accesos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Acceso rápido (fila con flecha) */
 .acceso {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
+  padding: 14px 16px;
   border-radius: var(--r-md);
   background: var(--surface);
-  border: 1px solid var(--border);
-  transition: transform 0.12s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  border: 1px solid var(--line);
+  transition: transform 0.12s var(--ease), border-color 0.18s var(--ease), background 0.18s var(--ease);
 }
-.acceso:active { transform: scale(0.97); }
-.acceso:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
+.acceso:active { transform: scale(0.98); }
+.acceso:hover { border-color: var(--accent); background: var(--surface-2); }
 .acceso__icon {
   display: flex;
   align-items: center;
@@ -453,7 +503,8 @@ async function reintentarVinculo() {
   color: var(--cyan-bright);
   background: var(--surface-2);
 }
-.acceso__label { font-weight: 700; font-size: 0.92rem; }
+.acceso__label { flex: 1; font-weight: 700; font-size: 0.95rem; }
+.acceso__arrow { color: var(--text-faint); }
 
 .cta-checkin { height: 62px; font-size: 1.08rem; margin-top: 2px; }
 </style>

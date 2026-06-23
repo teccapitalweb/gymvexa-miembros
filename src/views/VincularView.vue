@@ -337,33 +337,21 @@ onBeforeUnmount(async () => {
         <div v-if="mostrarManual && fase !== 'escaneando'" class="card manual">
           <div class="field">
             <label class="field__label" for="codigo">Tu código</label>
-            <div class="input-wrap">
-              <span class="input-wrap__icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 7V5a2 2 0 0 1 2-2h2" />
-                  <path d="M16 3h2a2 2 0 0 1 2 2v2" />
-                  <path d="M20 17v2a2 2 0 0 1-2 2h-2" />
-                  <path d="M8 21H6a2 2 0 0 1-2-2v-2" />
-                  <path d="M7 12h10" />
-                </svg>
-              </span>
-              <input
-                id="codigo"
-                :value="codigoInput"
-                class="input input--codigo"
-                type="text"
-                inputmode="text"
-                autocapitalize="characters"
-                autocomplete="off"
-                spellcheck="false"
-                maxlength="9"
-                placeholder="XXXX-XXXX"
-                :disabled="fase === 'vinculando'"
-                @input="alTeclear"
-                @keyup.enter="vincularManual"
-              />
-            </div>
+            <input
+              id="codigo"
+              :value="codigoInput"
+              class="input input--codigo"
+              type="text"
+              inputmode="text"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+              maxlength="9"
+              placeholder="XXXX-XXXX"
+              :disabled="fase === 'vinculando'"
+              @input="alTeclear"
+              @keyup.enter="vincularManual"
+            />
           </div>
           <button
             class="btn btn--primary"
@@ -546,14 +534,19 @@ onBeforeUnmount(async () => {
   padding: 20px 18px;
 }
 .input--codigo {
+  height: 60px;
   text-transform: uppercase;
-  letter-spacing: 0.34em;
+  letter-spacing: 0.3em;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 1.2rem;
+  font-size: 1.35rem;
   text-align: center;
-  padding-left: 48px;
-  padding-right: 18px;
+  padding: 0 18px;
+  text-indent: 0.3em; /* compensa el tracking para centrar óptico */
+}
+.input--codigo::placeholder {
+  letter-spacing: 0.2em;
+  font-weight: 600;
 }
 
 /* Enlace cerrar sesión / usar otra cuenta */

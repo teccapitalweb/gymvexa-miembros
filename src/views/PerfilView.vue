@@ -147,8 +147,8 @@ async function cerrarSesion() {
   font-size: 2.3rem;
   font-weight: 800;
   color: #fff;
-  background: linear-gradient(140deg, var(--cyan), var(--accent-bright) 45%, var(--accent-deep));
-  box-shadow: 0 12px 34px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: var(--grad-firma);
+  box-shadow: 0 12px 30px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   margin-bottom: 4px;
 }
 .avatar__ring {
@@ -160,7 +160,15 @@ async function cerrarSesion() {
 }
 .perfil__nombre { position: relative; font-size: 1.6rem; }
 .perfil__num { position: relative; color: var(--cyan-bright); border-color: rgba(56, 189, 248, 0.3); background: rgba(56, 189, 248, 0.08); }
-.perfil__email { position: relative; color: var(--text-dim); font-size: 0.9rem; word-break: break-all; }
+.perfil__email {
+  position: relative;
+  max-width: 100%;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Métricas destacadas */
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
