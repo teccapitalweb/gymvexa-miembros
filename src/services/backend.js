@@ -284,8 +284,9 @@ function mensajePorCheckin(status) {
  * del CLAIM del token (no se envían) y valida membresía + anti-duplicado.
  *
  * @param {{ metodoCheckin?: string, idempotencyKey?: string }} [opciones]
- * @returns {Promise<{ ok: true, registrado: boolean, membresiaVigente: boolean, nombre: string, mensaje: string }>}
- *          `registrado` es false si el backend lo consideró un duplicado.
+ * @returns {Promise<{ ok: true, tipo: 'entrada'|'salida', registrado: boolean, duracionMinutos: number|null, membresiaVigente: boolean, nombre: string, mensaje: string }>}
+ *          `tipo` indica si fue entrada o salida (toggle con el mismo QR);
+ *          `duracionMinutos` viene en la salida; `registrado` es false si fue duplicado.
  * @throws {Error} con `.status` (403/404/401/500 o null en red) y `.message` legible.
  */
 export async function registrarCheckin({ metodoCheckin = 'qr_app', idempotencyKey } = {}) {
@@ -338,8 +339,12 @@ export async function registrarCheckin({ metodoCheckin = 'qr_app', idempotencyKe
   if (res.ok) {
     return {
       ok: true,
+      // 'entrada' por defecto si el backend no lo especifica (compat).
+      tipo: data?.tipo === 'salida' ? 'salida' : 'entrada',
       // Default true: solo es duplicado si el backend lo dice explícitamente.
       registrado: data?.registrado !== false,
+      duracionMinutos:
+        typeof data?.duracionMinutos === 'number' ? data.duracionMinutos : null,
       membresiaVigente: !!data?.membresiaVigente,
       nombre: data?.nombre || '',
       mensaje: data?.mensaje || data?.message || '',

@@ -14,7 +14,8 @@ import { registrarCheckin } from '../services/backend'
 export const useCheckinStore = defineStore('checkin', {
   state: () => ({
     procesando: false,
-    ultimoResultado: null, // { ok, registrado, membresiaVigente, mensaje, nombre, fechaHora }
+    // { ok, tipo, registrado, duracionMinutos, membresiaVigente, mensaje, nombre, fechaHora }
+    ultimoResultado: null,
     error: '',
   }),
 
@@ -43,27 +44,38 @@ export const useCheckinStore = defineStore('checkin', {
       this.procesando = true
       try {
         // El backend valida membresía y anti-duplicado; genera idempotencyKey solo.
+        // Hace TOGGLE entrada/salida con el mismo QR y devuelve 'tipo'/'duracionMinutos'.
         const r = await registrarCheckin({ metodoCheckin: 'qr_app' })
 
         const membresiaVigente = !!r.membresiaVigente
         const registrado = r.registrado !== false
+        const tipo = r.tipo === 'salida' ? 'salida' : 'entrada'
+        const duracionMinutos =
+          typeof r.duracionMinutos === 'number' ? r.duracionMinutos : null
         const nombre = r.nombre || socio.nombreSocio || socio.datos?.nombre || ''
 
-        // Mensaje: el del backend si vino; si no, uno acorde al estado.
+        // Mensaje: el del backend si vino; si no, uno acorde al estado (entrada/salida).
         let mensaje = r.mensaje
         if (!mensaje) {
           if (!registrado) {
-            mensaje = 'Ya registraste tu asistencia hace un momento.'
+            mensaje =
+              tipo === 'salida'
+                ? 'Ya registramos tu salida hace un momento.'
+                : 'Ya registramos tu entrada hace un momento.'
+          } else if (tipo === 'salida') {
+            mensaje = '¡Hasta pronto!'
           } else {
             mensaje = membresiaVigente
-              ? 'Acceso al corriente.'
+              ? '¡Bienvenido! Acceso al corriente.'
               : 'Tu membresía está vencida. Acércate a recepción.'
           }
         }
 
         const resultado = {
           ok: true,
+          tipo,
           registrado,
+          duracionMinutos,
           membresiaVigente,
           mensaje,
           nombre,

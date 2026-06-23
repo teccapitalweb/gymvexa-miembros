@@ -2,7 +2,7 @@
 // Pantalla de check-in: escanea el QR del gym con la cámara (html5-qrcode).
 // CRÍTICO: la cámara se detiene y libera SIEMPRE al desmontar, al salir de la
 // vista, y tras un escaneo exitoso. Nunca se deja encendida.
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useCheckinStore } from '../stores/checkin'
@@ -122,6 +122,38 @@ function horaLegible(fecha) {
     return ''
   }
 }
+
+// --- Presentación entrada vs salida (toggle del backend) ---
+const esSalida = computed(() => resultado.value?.tipo === 'salida')
+
+// Título según el tipo (o suave si fue un duplicado / doble toque).
+const tituloResultado = computed(() => {
+  const r = resultado.value
+  if (!r) return ''
+  if (r.registrado === false) return 'Ya estabas registrado'
+  return esSalida.value ? '¡Hasta pronto!' : '¡Bienvenido!'
+})
+
+// Tiempo de permanencia (solo en salida): "Estuviste 45 min" / "Estuviste 1 h 5 min".
+function formatearDuracion(min) {
+  const m = Math.max(0, Math.round(Number(min) || 0))
+  if (m < 60) return `Estuviste ${m} min`
+  const h = Math.floor(m / 60)
+  const resto = m % 60
+  return resto ? `Estuviste ${h} h ${resto} min` : `Estuviste ${h} h`
+}
+const permanenciaTexto = computed(() => {
+  const min = resultado.value?.duracionMinutos
+  if (min === null || min === undefined) return ''
+  return formatearDuracion(min)
+})
+
+// Texto del aviso de membresía (propio, para no duplicar el saludo del título).
+const avisoMembresia = computed(() =>
+  resultado.value?.membresiaVigente
+    ? 'Acceso al corriente.'
+    : 'Tu membresía está vencida. Acércate a recepción.',
+)
 </script>
 
 <template>
@@ -131,34 +163,62 @@ function horaLegible(fecha) {
       <p class="checkin__sub">Escanea el código QR de tu gimnasio</p>
     </header>
 
-    <!-- Resultado exitoso -->
+    <!-- Resultado exitoso (entrada o salida) -->
     <section v-if="resultado && resultado.ok" class="card resultado">
-      <span class="resultado__check">
+      <span class="resultado__check" :class="{ 'resultado__check--salida': esSalida }">
         <span class="resultado__ripple" aria-hidden="true"></span>
         <span class="resultado__ripple resultado__ripple--2" aria-hidden="true"></span>
-        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Entrada: check animado -->
+        <svg v-if="!esSalida" width="46" height="46" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round">
           <path class="resultado__tick" d="m5 13 4 4L19 7" />
         </svg>
+        <!-- Salida: puerta con flecha de salida -->
+        <svg v-else width="44" height="44" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <path d="m16 17 5-5-5-5" />
+          <path d="M21 12H9" />
+        </svg>
       </span>
-      <h2 class="resultado__title">
-        {{ resultado.registrado === false ? 'Ya estabas registrado' : '¡Asistencia registrada!' }}
-      </h2>
+
+      <h2 class="resultado__title">{{ tituloResultado }}</h2>
       <p v-if="resultado.nombre" class="resultado__nombre">{{ resultado.nombre }}</p>
       <p class="resultado__hora">{{ horaLegible(resultado.fechaHora) }}</p>
 
-      <div class="aviso" :class="resultado.membresiaVigente ? 'aviso--ok' : 'aviso--alerta'">
-        <svg v-if="resultado.membresiaVigente" width="20" height="20" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 6 9 17l-5-5" />
+      <!-- Permanencia (solo en salida con duración) -->
+      <div v-if="esSalida && permanenciaTexto" class="permanencia">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
         </svg>
-        <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        <span>{{ permanenciaTexto }}</span>
+      </div>
+
+      <!-- Aviso: duplicado (suave) / membresía vencida / al corriente en entrada -->
+      <div v-if="resultado.registrado === false" class="aviso aviso--info">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" />
+        </svg>
+        <span>{{ resultado.mensaje }}</span>
+      </div>
+      <div v-else-if="!resultado.membresiaVigente" class="aviso aviso--alerta">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 9v4" /><path d="M12 17h.01" />
           <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
         </svg>
-        <span>{{ resultado.mensaje }}</span>
+        <span>{{ avisoMembresia }}</span>
+      </div>
+      <div v-else-if="!esSalida" class="aviso aviso--ok">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+        <span>{{ avisoMembresia }}</span>
       </div>
 
       <button class="btn btn--primary" @click="volverAInicio">Volver al inicio</button>
@@ -385,5 +445,35 @@ function horaLegible(fecha) {
   background: rgba(255, 90, 118, 0.12);
   border: 1px solid rgba(255, 90, 118, 0.35);
   color: #ffb3c0;
+}
+.aviso--info {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #9fe3ff;
+}
+
+/* Variante SALIDA: círculo azul (despedida) en vez del verde de entrada. */
+.resultado__check--salida {
+  color: #061a33;
+  background: linear-gradient(160deg, var(--cyan-bright), var(--accent));
+  box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.14), 0 12px 36px var(--accent-glow);
+}
+.resultado__check--salida .resultado__ripple {
+  border-color: var(--accent);
+}
+
+/* Chip de permanencia (tiempo dentro del gym) en la salida. */
+.permanencia {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 9px 15px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: var(--cyan-bright);
+  font-weight: 700;
+  font-size: 0.96rem;
 }
 </style>
