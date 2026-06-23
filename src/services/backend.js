@@ -18,6 +18,9 @@ const BACKEND_URL = (
 const ENDPOINT_VINCULAR = `${BACKEND_URL}/api/vincular-socio`
 // Vinculación POR CÓDIGO (QR / tecleado) que genera el panel en la ficha del socio.
 const ENDPOINT_VINCULAR_CODIGO = `${BACKEND_URL}/api/socios/vincular`
+// Check-in del socio: el backend (Admin SDK) registra la asistencia de forma
+// segura (valida membresía/anti-duplicado) SIN que el cliente toque Firestore.
+const ENDPOINT_CHECKIN = `${BACKEND_URL}/api/socios/checkin`
 
 // Construye un Error con status + mensaje legible (para que la UI ramifique).
 function errorBackend(mensaje, { status = null, data = null, red = false } = {}) {
@@ -241,6 +244,109 @@ export async function vincularSocioPorCodigo(codigo) {
   }
 
   throw errorBackend(data?.error || data?.mensaje || mensajePorCodigo(res.status), {
+    status: res.status,
+    data,
+  })
+}
+
+// --------------------------------------------------------------------------
+// Check-in del socio (registro de asistencia vía backend).
+// --------------------------------------------------------------------------
+
+// Clave de idempotencia por check-in: evita duplicados por doble toque / reintento
+// de red (el backend descarta una repetición con la misma clave).
+function generarIdempotencyKey() {
+  try {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
+  } catch {
+    // Sin crypto.randomUUID disponible; usamos un respaldo simple.
+  }
+  return `ck-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+// Mensaje de respaldo por status para el endpoint de check-in.
+function mensajePorCheckin(status) {
+  switch (status) {
+    case 401:
+      return 'Tu sesión expiró. Vuelve a iniciar sesión e inténtalo de nuevo.'
+    case 403:
+      return 'Tu gimnasio está suspendido o tu acceso venció. Acércate a recepción.'
+    case 404:
+      return 'No encontramos tu ficha de socio. Contacta a tu gimnasio.'
+    default:
+      return 'No pudimos registrar tu asistencia. Inténtalo de nuevo.'
+  }
+}
+
+/**
+ * Registra la asistencia (check-in) del socio autenticado.
+ * POST /api/socios/checkin con Bearer <idToken>. El backend toma gymId y socioId
+ * del CLAIM del token (no se envían) y valida membresía + anti-duplicado.
+ *
+ * @param {{ metodoCheckin?: string, idempotencyKey?: string }} [opciones]
+ * @returns {Promise<{ ok: true, registrado: boolean, membresiaVigente: boolean, nombre: string, mensaje: string }>}
+ *          `registrado` es false si el backend lo consideró un duplicado.
+ * @throws {Error} con `.status` (403/404/401/500 o null en red) y `.message` legible.
+ */
+export async function registrarCheckin({ metodoCheckin = 'qr_app', idempotencyKey } = {}) {
+  const user = auth.currentUser
+  if (!user) {
+    throw errorBackend('No hay una sesión activa. Vuelve a iniciar sesión.', {
+      status: 401,
+    })
+  }
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    throw errorBackend('No pudimos validar tu sesión. Inténtalo de nuevo.', {
+      status: 401,
+    })
+  }
+
+  // Una clave de idempotencia por cada check-in (si no se pasó una explícita).
+  const body = {
+    metodoCheckin,
+    idempotencyKey: idempotencyKey || generarIdempotencyKey(),
+  }
+
+  let res
+  try {
+    res = await fetch(ENDPOINT_CHECKIN, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    throw errorBackend(
+      'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+      { red: true },
+    )
+  }
+
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+
+  if (res.ok) {
+    return {
+      ok: true,
+      // Default true: solo es duplicado si el backend lo dice explícitamente.
+      registrado: data?.registrado !== false,
+      membresiaVigente: !!data?.membresiaVigente,
+      nombre: data?.nombre || '',
+      mensaje: data?.mensaje || data?.message || '',
+    }
+  }
+
+  throw errorBackend(data?.error || data?.mensaje || mensajePorCheckin(res.status), {
     status: res.status,
     data,
   })

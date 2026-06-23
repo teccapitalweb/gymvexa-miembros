@@ -141,7 +141,9 @@ function horaLegible(fecha) {
           <path class="resultado__tick" d="m5 13 4 4L19 7" />
         </svg>
       </span>
-      <h2 class="resultado__title">¡Asistencia registrada!</h2>
+      <h2 class="resultado__title">
+        {{ resultado.registrado === false ? 'Ya estabas registrado' : '¡Asistencia registrada!' }}
+      </h2>
       <p v-if="resultado.nombre" class="resultado__nombre">{{ resultado.nombre }}</p>
       <p class="resultado__hora">{{ horaLegible(resultado.fechaHora) }}</p>
 
