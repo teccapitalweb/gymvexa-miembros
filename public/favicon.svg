@@ -1,17 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Gymvexa">
   <defs>
-    <linearGradient id="gv" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#34e1ff"/>
-      <stop offset="0.55" stop-color="#4c8dff"/>
-      <stop offset="1" stop-color="#3a5bff"/>
+    <linearGradient id="gBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="gCyan" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#06D6DB"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="16" fill="url(#gv)"/>
-  <g stroke="#f4f8ff" stroke-width="3.4" stroke-linecap="round" fill="none">
-    <path d="M17.3 24v16"/>
-    <path d="M46.7 24v16"/>
-    <path d="M17.3 32h29.4"/>
-    <path d="M9.3 28v8"/>
-    <path d="M54.7 28v8"/>
-  </g>
+  <rect width="512" height="512" rx="115" fill="#040915"/>
+  <path d="M346 82 L158 190 L158 333 L259 411 L406 325 L406 242 L280 242" fill="none" stroke="url(#gBlue)" stroke-width="62" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M160 318 L252 388 L366 285" fill="none" stroke="url(#gCyan)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

@@ -74,15 +74,8 @@ async function entrarConGoogle() {
       <div class="brand">
         <span class="brand__mark">
           <span class="brand__ring" aria-hidden="true"></span>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2.1"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6.5 9v6" />
-            <path d="M17.5 9v6" />
-            <path d="M6.5 12h11" />
-            <path d="M3.5 10.5v3" />
-            <path d="M20.5 10.5v3" />
-          </svg>
+          <!-- MODIFICADO: ícono de pesas → nuevo logo Gymvexa (cuadrado) -->
+          <img class="brand__logo" src="/gymvexa-icon.png" alt="Gymvexa" width="76" height="76" />
         </span>
       </div>
       <div class="brand__text">
@@ -221,9 +214,17 @@ async function entrarConGoogle() {
   width: 76px;
   height: 76px;
   border-radius: var(--r-lg);
-  color: #fff;
-  background: linear-gradient(140deg, var(--cyan), var(--accent-bright) 45%, var(--accent-deep));
-  box-shadow: 0 14px 40px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  /* MODIFICADO: el fondo y el ícono ahora vienen de la imagen del logo */
+  box-shadow: 0 14px 40px var(--accent-glow);
+}
+
+/* MODIFICADO: imagen del nuevo logo dentro del recuadro de marca */
+.brand__logo {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  display: block;
 }
 
 /* Anillo de glow que late suavemente. */
