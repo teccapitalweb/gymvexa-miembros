@@ -512,3 +512,70 @@ svg {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ============================================================================
+   MODO DÍA (claro) — variante de colores. La NOCHE es el valor por defecto de
+   :root (arriba) y NO se modifica. Solo se sobreescriben los tokens de color.
+   Se activa con <html data-theme="light"> (lo controla useTema.js).
+   ========================================================================== */
+:root[data-theme="light"] {
+  /* ---- Fondo y superficies (claro, limpio, azulado muy suave) ---- */
+  --bg: #f4f6fb;
+  --bg-2: #eaeef6;
+  --bg-elev: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f1f4fa;
+  --surface-3: #e6ebf4;
+  --surface-glass: rgba(255, 255, 255, 0.72);
+
+  /* ---- Hairlines (oscuras y sutiles en vez de blancas) ---- */
+  --line: rgba(15, 23, 42, 0.08);
+  --line-strong: rgba(15, 23, 42, 0.14);
+  --border: rgba(15, 23, 42, 0.10);
+  --border-soft: rgba(15, 23, 42, 0.06);
+
+  /* ---- Acento de marca (azul un poco más profundo para contraste sobre claro) ---- */
+  --cyan: #18c8e6;
+  --cyan-bright: #07b6d8;
+  --accent: #2f6bff;
+  --accent-bright: #2a5fec;
+  --accent-deep: #2347e6;
+  --accent-soft: rgba(47, 107, 255, 0.12);
+
+  /* ---- Glow más discreto en día ---- */
+  --glow: rgba(47, 107, 255, 0.20);
+  --accent-glow: rgba(47, 107, 255, 0.16);
+  --cyan-glow: rgba(24, 200, 230, 0.18);
+
+  /* ---- Texto (oscuro) ---- */
+  --text: #0f1729;
+  --text-dim: #475569;
+  --text-faint: #8190a8;
+
+  /* ---- Estados soft (tintes claros sobre fondo blanco) ---- */
+  --danger-soft: rgba(225, 29, 54, 0.10);
+  --success-soft: rgba(5, 150, 105, 0.10);
+  --warn-soft: rgba(217, 119, 6, 0.12);
+
+  /* ---- Sombras grises suaves (no negras profundas) ---- */
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.10);
+  --shadow-soft: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+/* Ajustes puntuales para detalles que en noche usan blancos translúcidos. */
+:root[data-theme="light"] body {
+  background-image:
+    radial-gradient(1100px 620px at 50% -14%, rgba(47, 107, 255, 0.06), transparent 60%),
+    radial-gradient(820px 520px at 110% 6%, rgba(24, 200, 230, 0.05), transparent 55%);
+}
+:root[data-theme="light"] .alert--error {
+  color: #c01730;
+}
+
+/* Transición suave al alternar día / noche (acotada a fondos, bordes y texto). */
+body,
+.screen, .card,
+.btn, .btn--ghost, .btn--primary,
+input, .chip, .alert {
+  transition: background-color 0.35s var(--ease), border-color 0.35s var(--ease), color 0.35s var(--ease);
+}

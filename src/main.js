@@ -5,11 +5,15 @@ import './assets/styles/main.css'
 import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth'
+import { initTema } from './composables/useTema'
 
 const app = createApp(App)
 const pinia = createPinia()
 
 app.use(pinia)
+
+// Aplica el tema guardado (día/noche) antes de montar, para evitar parpadeo.
+initTema()
 
 // Arranca la suscripción al estado de sesión antes de montar el router,
 // para que el guard pueda esperar a authReady.
