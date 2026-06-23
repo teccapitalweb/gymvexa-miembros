@@ -6,7 +6,7 @@ import { computed } from 'vue'
 import BottomNav from './components/BottomNav.vue'
 
 const route = useRoute()
-const mostrarNav = computed(() => !route.meta.publica)
+const mostrarNav = computed(() => !route.meta.publica && !route.meta.ocultarNav)
 </script>
 
 <template>

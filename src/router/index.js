@@ -13,6 +13,14 @@ const routes = [
     meta: { publica: true },
   },
   {
+    // Pantalla "Vincula tu cuenta": requiere sesión pero NO requiere el claim de
+    // socio (es justo donde se obtiene). Acepta el deep link /vincular?c=CODIGO.
+    path: '/vincular',
+    name: 'vincular',
+    component: () => import('../views/VincularView.vue'),
+    meta: { requiereLogin: true, ocultarNav: true },
+  },
+  {
     path: '/inicio',
     name: 'inicio',
     component: () => import('../views/InicioView.vue'),
@@ -56,14 +64,27 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   await esperarAuthReady(authStore)
 
-  // Ruta protegida sin sesión -> al login.
-  if (to.meta.requiereSocio && !authStore.estaLogueado) {
+  const necesitaSesion = to.meta.requiereSocio || to.meta.requiereLogin
+
+  // Ruta que requiere sesión y no hay sesión -> al login.
+  // Se preserva el destino COMPLETO (incl. ?c=CODIGO) para retomarlo tras entrar.
+  if (necesitaSesion && !authStore.estaLogueado) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 
-  // Si ya hay sesión y va al login, mándalo a inicio.
-  if (to.name === 'login' && authStore.estaLogueado) {
+  // Logueado pero SIN claim de socio en una ruta que lo exige -> a vincular.
+  if (to.meta.requiereSocio && !authStore.tieneClaimSocio) {
+    return { name: 'vincular' }
+  }
+
+  // Si ya está vinculado y va a /vincular, no tiene nada que hacer ahí -> a inicio.
+  if (to.name === 'vincular' && authStore.estaLogueado && authStore.tieneClaimSocio) {
     return { name: 'inicio' }
+  }
+
+  // Si ya hay sesión y va al login, mándalo a inicio o a vincular según su claim.
+  if (to.name === 'login' && authStore.estaLogueado) {
+    return authStore.tieneClaimSocio ? { name: 'inicio' } : { name: 'vincular' }
   }
 
   return true

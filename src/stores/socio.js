@@ -9,6 +9,7 @@ import {
   where,
   limit,
   getDocs,
+  getDoc,
   doc,
   onSnapshot,
 } from 'firebase/firestore'
@@ -56,6 +57,42 @@ export const useSocioStore = defineStore('socio', {
     // Usa collectionGroup sobre "socios" porque no conocemos el gymId de antemano.
     async vincularSocio() {
       const auth = useAuthStore()
+
+      // CAMINO PREFERENTE: el token trae el claim {gymId, socioId}. Tras vincular
+      // (por código o por correo) leemos la ficha DIRECTO por su ruta. Es más
+      // robusto que buscar por correo: el correo de la ficha podría no coincidir.
+      if (auth.tieneClaimSocio) {
+        const gymId = auth.gymIdClaim
+        const socioId = auth.socioIdClaim
+        // Si ya estamos en la misma ficha y tenemos datos, no repetimos.
+        if (this.gymId === gymId && this.socioId === socioId && this.datos) return
+
+        this.cargando = true
+        this.error = ''
+        this.noVinculado = false
+        this.gymId = gymId
+        this.socioId = socioId
+        try {
+          const ref = doc(db, 'gyms', gymId, 'socios', socioId)
+          const snap = await getDoc(ref)
+          if (snap.exists()) {
+            this.datos = { id: snap.id, ...snap.data() }
+          }
+          this.claimOk = true
+          this.claimEstado = 'ok'
+          // Listener en vivo para saldo/membresía/visitas.
+          this.suscribirSocio()
+        } catch (e) {
+          this.error = this._mensajeError(e)
+        } finally {
+          this.cargando = false
+          this.resuelto = true
+        }
+        return
+      }
+
+      // FALLBACK (sin claim): comportamiento previo — auto-vínculo por correo
+      // y lookup de la ficha por el correo del usuario autenticado.
       const email = auth.correo
       if (!email) {
         this.error = 'No hay una sesión activa.'
