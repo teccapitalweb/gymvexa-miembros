@@ -68,11 +68,8 @@ onBeforeUnmount(() => {
   <transition name="install">
     <div v-if="visible" class="install" role="dialog" aria-label="Instalar la app">
       <span class="install__icon" aria-hidden="true">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6.5 9v6" /><path d="M17.5 9v6" /><path d="M6.5 12h11" />
-          <path d="M3.5 10.5v3" /><path d="M20.5 10.5v3" />
-        </svg>
+        <!-- MODIFICADO: ícono de pesas → nuevo logo Gymvexa (cuadrado) -->
+        <img class="install__logo" src="/gymvexa-icon.png" alt="Gymvexa" width="42" height="42" />
       </span>
       <div class="install__body">
         <p class="install__title">Instala Gymvexa</p>
@@ -116,9 +113,15 @@ onBeforeUnmount(() => {
   width: 42px;
   height: 42px;
   border-radius: var(--r-sm);
-  color: #fff;
-  background: linear-gradient(140deg, var(--cyan), var(--accent-bright) 45%, var(--accent-deep));
+  /* MODIFICADO: el fondo y el ícono ahora vienen de la imagen del logo */
   box-shadow: 0 6px 18px var(--accent-glow);
+}
+.install__logo {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  display: block;
 }
 .install__body { flex: 1; min-width: 0; }
 .install__title { font-weight: 800; font-size: 0.96rem; }
