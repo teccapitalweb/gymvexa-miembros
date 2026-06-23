@@ -132,7 +132,7 @@ async function cerrarSesion() {
   height: 300px;
   border-radius: 50%;
   background: radial-gradient(circle, var(--accent-glow), transparent 62%);
-  opacity: 0.5;
+  opacity: 0.3;
   pointer-events: none;
 }
 .avatar {

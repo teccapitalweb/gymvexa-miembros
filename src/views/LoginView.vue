@@ -194,7 +194,7 @@ async function entrarConGoogle() {
   border-radius: 50%;
   background: radial-gradient(circle, var(--accent-glow), transparent 62%);
   filter: blur(20px);
-  opacity: 0.7;
+  opacity: 0.4;
   pointer-events: none;
   z-index: 0;
 }

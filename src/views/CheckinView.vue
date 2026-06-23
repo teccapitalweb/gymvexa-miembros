@@ -164,7 +164,8 @@ const avisoMembresia = computed(() =>
     </header>
 
     <!-- Resultado exitoso (entrada o salida) -->
-    <section v-if="resultado && resultado.ok" class="card resultado">
+    <section v-if="resultado && resultado.ok" class="card resultado"
+             :class="{ 'resultado--salida': esSalida }">
       <span class="resultado__check" :class="{ 'resultado__check--salida': esSalida }">
         <span class="resultado__ripple" aria-hidden="true"></span>
         <span class="resultado__ripple resultado__ripple--2" aria-hidden="true"></span>
@@ -229,8 +230,12 @@ const avisoMembresia = computed(() =>
       <div class="lector-marco" :class="{ 'lector-marco--activo': escaneando }">
         <div :id="ID_LECTOR" class="lector"></div>
 
-        <!-- Guías de esquina estilizadas -->
+        <!-- Viñeta oscura alrededor del visor (refuerza el foco). -->
+        <div class="lector-vineta" aria-hidden="true"></div>
+
+        <!-- Guías de esquina + retícula de foco que pulsa -->
         <div class="guias" aria-hidden="true">
+          <span v-if="escaneando" class="guia__foco"></span>
           <span class="guia guia--tl"></span>
           <span class="guia guia--tr"></span>
           <span class="guia guia--bl"></span>
@@ -297,9 +302,9 @@ const avisoMembresia = computed(() =>
 </template>
 
 <style scoped>
-.checkin { gap: 20px; }
+.checkin { gap: var(--sp-4); }
 .checkin__head { margin-top: 6px; text-align: center; }
-.checkin__title { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; }
+.checkin__title { font-family: var(--font-display); font-size: 1.75rem; font-weight: 800; letter-spacing: -0.025em; }
 .checkin__sub { color: var(--text-dim); font-size: 0.95rem; margin-top: 2px; }
 
 .lector-marco {
@@ -320,8 +325,34 @@ const avisoMembresia = computed(() =>
 .lector :deep(video) { width: 100% !important; height: 100% !important; object-fit: cover; }
 .lector :deep(img) { display: none; } /* oculta el ícono por defecto de la lib */
 
+/* Viñeta oscura alrededor del visor (refuerza el foco al centro). */
+.lector-vineta {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 50%, rgba(0, 0, 0, 0.5) 100%);
+  box-shadow: inset 0 0 60px 16px rgba(0, 0, 0, 0.5);
+}
+
 /* Guías de esquina + láser */
 .guias { position: absolute; inset: 0; pointer-events: none; }
+
+/* Retícula de foco que pulsa suavemente mientras se escanea. */
+.guia__foco {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 62%;
+  height: 62%;
+  transform: translate(-50%, -50%);
+  border-radius: 18px;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  animation: foco 2.4s var(--ease) infinite;
+}
+@keyframes foco {
+  0%, 100% { opacity: 0.35; transform: translate(-50%, -50%) scale(0.96); }
+  50%      { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
+}
 .guia {
   position: absolute;
   width: 34px;
@@ -368,15 +399,35 @@ const avisoMembresia = computed(() =>
 .lector__placeholder svg { color: var(--accent-bright); opacity: 0.85; }
 .lector__placeholder--load svg { color: var(--cyan-bright); }
 
-/* Resultado con animación de éxito satisfactoria */
+/* Resultado con animación de éxito satisfactoria (cinematográfica). */
 .resultado {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: 10px;
   padding: 34px 22px;
-  animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  overflow: hidden;
+  animation: rise 0.45s var(--ease) both;
+}
+/* Scrim/halo difuminado detrás del check (el único acento de esta pantalla). */
+.resultado::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  width: 260px;
+  height: 260px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--success-glow), transparent 68%);
+  filter: blur(18px);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.resultado--salida::before {
+  background: radial-gradient(circle, var(--glow), transparent 68%);
 }
 .resultado__check {
   position: relative;
@@ -388,7 +439,7 @@ const avisoMembresia = computed(() =>
   border-radius: 50%;
   color: #04231a;
   background: linear-gradient(160deg, #5cf2cd, var(--success));
-  box-shadow: 0 0 0 8px rgba(47, 224, 173, 0.14), 0 12px 36px var(--success-glow);
+  box-shadow: 0 0 0 8px rgba(43, 224, 166, 0.14), 0 12px 36px var(--success-glow);
   margin-bottom: 8px;
   animation: pop 0.5s cubic-bezier(0.18, 1.4, 0.4, 1) both;
 }

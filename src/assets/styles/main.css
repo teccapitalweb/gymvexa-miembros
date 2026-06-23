@@ -1,66 +1,86 @@
 /* =========================================================================
-   Gymvexa Miembros — Sistema de diseño móvil-primero (oscuro-neón premium)
-   Una sola columna, áreas táctiles grandes, glow sutil, radios amplios,
-   glassmorphism discreto y micro-animaciones. Identidad fitness de alta gama.
+   Gymvexa Miembros — Sistema de diseño "QUIET NEON" (oscuro premium)
+   Superficies casi negras y silenciosas, hairlines translúcidos, elevación
+   por sombra suave, escala tipográfica y de espaciado reales, y el gradiente
+   cyan->azul como ÚNICA firma (glow como excepción, no como default).
    ========================================================================= */
 
 :root {
-  /* ---- Fondo y superficies (negro azulado profundo) ---- */
-  --bg: #070b12;            /* fondo base */
-  --bg-2: #0b1120;          /* fondo secundario para gradientes */
-  --bg-elev: #0d1426;       /* superficie elevada / placeholders */
-  --surface: #101a30;       /* tarjetas */
-  --surface-2: #16223f;     /* inputs / tarjetas alternas */
-  --surface-glass: rgba(18, 28, 51, 0.66); /* vidrio */
-  --border: #20304f;        /* bordes sutiles */
-  --border-soft: rgba(120, 160, 230, 0.12);
+  /* ---- Fondo y superficies (negro azulado profundo, baja saturación) ---- */
+  --bg: #060910;            /* base, casi negro (OLED) */
+  --bg-2: #0a111e;          /* fondo secundario para gradientes */
+  --bg-elev: #0d1320;       /* superficie elevada / placeholders */
+  --surface: #0d1320;       /* tarjetas (surface-1) */
+  --surface-2: #121a2a;     /* inputs / tarjetas alternas (surface-2) */
+  --surface-3: #182236;     /* hover / press (surface-3) */
+  --surface-glass: rgba(13, 19, 32, 0.72); /* vidrio */
 
-  /* ---- Acentos (azul eléctrico + cyan) ---- */
-  --accent: #3b82f6;        /* azul eléctrico */
-  --accent-bright: #5b9bff; /* azul brillante (hover) */
-  --accent-deep: #2563eb;   /* azul profundo (gradiente) */
-  --cyan: #38bdf8;          /* cyan */
-  --cyan-bright: #67d3ff;
-  --accent-soft: rgba(59, 130, 246, 0.16);
-  --accent-glow: rgba(59, 130, 246, 0.45);
-  --cyan-glow: rgba(56, 189, 248, 0.4);
+  /* ---- Hairlines (en vez de bordes duros) ---- */
+  --line: rgba(255, 255, 255, 0.06);
+  --line-strong: rgba(255, 255, 255, 0.1);
+  /* Compat: tokens de borde existentes ahora apuntan a hairlines. */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-soft: rgba(255, 255, 255, 0.05);
+
+  /* ---- Acento de marca (cyan -> azul eléctrico -> índigo) ---- */
+  --cyan: #34e1ff;
+  --cyan-bright: #6bebff;
+  --accent: #4c8dff;
+  --accent-bright: #6aa4ff;  /* hover */
+  --accent-deep: #3a5bff;
+  --accent-soft: rgba(76, 141, 255, 0.16);
+  /* Gradiente FIRMA: úsese con moderación (marca, CTA primario, dato hero). */
+  --grad-firma: linear-gradient(135deg, #34e1ff, #4c8dff 55%, #3a5bff);
+
+  /* ---- Glow ÚNICO y atenuado (excepción, no default) ---- */
+  --glow: rgba(76, 141, 255, 0.35);
+  --accent-glow: rgba(76, 141, 255, 0.22);
+  --cyan-glow: rgba(52, 225, 255, 0.24);
 
   /* ---- Texto ---- */
-  --text: #eef3fc;          /* principal */
-  --text-dim: #9bacca;      /* secundario */
-  --text-faint: #5f7196;    /* terciario / labels */
+  --text: #f2f5fc;          /* principal */
+  --text-dim: #9fb0cc;      /* secundario */
+  --text-faint: #64758f;    /* terciario / labels */
 
-  /* ---- Estados ---- */
-  --danger: #ff5a76;
-  --danger-glow: rgba(255, 90, 118, 0.4);
-  --success: #2fe0ad;
-  --success-glow: rgba(47, 224, 173, 0.42);
-  --warn: #ffb84c;
-  --warn-glow: rgba(255, 184, 76, 0.45);
+  /* ---- Estados (+ versiones soft ~12%) ---- */
+  --danger: #ff5c72;
+  --danger-soft: rgba(255, 92, 114, 0.12);
+  --danger-glow: rgba(255, 92, 114, 0.24);
+  --success: #2be0a6;
+  --success-soft: rgba(43, 224, 166, 0.12);
+  --success-glow: rgba(43, 224, 166, 0.24);
+  --warn: #ffc24b;
+  --warn-soft: rgba(255, 194, 75, 0.12);
+  --warn-glow: rgba(255, 194, 75, 0.24);
 
-  /* ---- Radios ---- */
-  --r-sm: 12px;
-  --r-md: 18px;
-  --r-lg: 26px;
-  --r-xl: 32px;
+  /* ---- Radios unificados (más bajos = más refinado) ---- */
+  --r-sm: 10px;   /* chips pequeños */
+  --r-md: 14px;   /* inputs, botones, elementos internos */
+  --r-lg: 20px;   /* tarjetas */
+  --r-xl: 24px;   /* visor del escáner */
   --r-pill: 999px;
 
   /* ---- Sombras / glow ---- */
-  --shadow-card: 0 18px 44px rgba(0, 0, 0, 0.5);
-  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.35);
-  --glow-accent: 0 0 0 1px var(--accent-soft), 0 10px 34px var(--accent-glow);
-  --glow-ring: 0 0 0 1px var(--border-soft);
+  --shadow-card: 0 12px 30px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.35);
+  /* Acento suave de 1px + leve elevación (sin "sopa de glow"). */
+  --glow-accent: 0 0 0 1px var(--line-strong), 0 10px 28px var(--accent-glow);
+  --glow-ring: 0 0 0 1px var(--line);
 
-  /* ---- Espaciados ---- */
-  --sp-1: 6px;
-  --sp-2: 10px;
-  --sp-3: 16px;
-  --sp-4: 22px;
-  --sp-5: 30px;
+  /* ---- Espaciado (escala 4px real) ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
 
   /* ---- Tipografía ---- */
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+
+  /* ---- Easing único ---- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* ---- Áreas seguras móviles (notch / barra inferior) ---- */
   --safe-top: env(safe-area-inset-top, 0px);
@@ -69,7 +89,7 @@
   --safe-right: env(safe-area-inset-right, 0px);
 
   /* ---- Barra de navegación inferior ---- */
-  --nav-h: 66px;
+  --nav-h: 68px;
 
   color-scheme: dark;
 }
@@ -96,11 +116,10 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* Fondo con glows radiales sutiles (azul arriba, cyan abajo). */
+  /* Fondo con glows radiales MUY sutiles (acento medido, no recargado). */
   background-image:
-    radial-gradient(1100px 620px at 50% -12%, rgba(59, 130, 246, 0.18), transparent 60%),
-    radial-gradient(820px 520px at 108% 8%, rgba(56, 189, 248, 0.1), transparent 55%),
-    radial-gradient(900px 560px at -10% 112%, rgba(59, 130, 246, 0.1), transparent 55%);
+    radial-gradient(1100px 620px at 50% -14%, rgba(76, 141, 255, 0.1), transparent 60%),
+    radial-gradient(820px 520px at 110% 6%, rgba(52, 225, 255, 0.05), transparent 55%);
   background-attachment: fixed;
   overflow-x: hidden;
 }
@@ -137,7 +156,6 @@ svg {
 }
 
 /* --------------------- Contenedor de pantalla móvil --------------------- */
-/* Una sola columna, centrada, con ancho máximo tipo celular. */
 .screen {
   position: relative;
   width: 100%;
@@ -146,19 +164,21 @@ svg {
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: var(--sp-4); /* ritmo vertical estándar entre secciones */
   padding:
-    calc(var(--safe-top) + 22px)
-    calc(var(--safe-right) + 20px)
-    calc(var(--safe-bottom) + 22px)
-    calc(var(--safe-left) + 20px);
+    calc(var(--safe-top) + var(--sp-5))
+    calc(var(--safe-right) + var(--sp-4))
+    calc(var(--safe-bottom) + var(--sp-5))
+    calc(var(--safe-left) + var(--sp-4));
 }
 
-/* Cuando hay barra inferior, reservamos su espacio. */
+/* Cuando hay barra inferior, reservamos su espacio (incl. el FAB elevado). */
 .screen--with-nav {
-  padding-bottom: calc(var(--safe-bottom) + var(--nav-h) + 24px);
+  padding-bottom: calc(var(--safe-bottom) + var(--nav-h) + 28px);
 }
 
 /* ------------------------------- Tipografía ----------------------------- */
+/* Escala tipográfica centralizada. */
 .display {
   font-family: var(--font-display);
   font-weight: 800;
@@ -166,7 +186,28 @@ svg {
   line-height: 1;
 }
 
-/* Número grande y vistoso para datos clave (saldo, días, visitas). */
+/* Título de pantalla. */
+.t-screen {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.75rem;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+
+/* Título de tarjeta / sección. */
+.t-card {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+/* Texto de cuerpo y caption. */
+.body { font-size: 0.95rem; color: var(--text-dim); }
+.caption { font-size: 0.8rem; color: var(--text-faint); }
+
+/* Número clave (saldo, días, visitas) — tratamiento ÚNICO. */
 .metric {
   font-family: var(--font-display);
   font-weight: 800;
@@ -174,25 +215,52 @@ svg {
   line-height: 0.95;
   font-variant-numeric: tabular-nums;
 }
+/* Número HERO (el dato protagonista de una pantalla). */
+.metric-xl {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 3.25rem;
+  letter-spacing: -0.03em;
+  line-height: 0.92;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Relleno con gradiente firma para números — PROBADO con respaldo:
+   si el navegador no soporta background-clip:text, queda color sólido visible. */
+.num-gradient {
+  color: var(--cyan-bright);
+  background: var(--grad-firma);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .num-gradient {
+    -webkit-text-fill-color: var(--cyan-bright);
+    background: none;
+  }
+}
 
 /* Etiqueta tipo "kicker" en mayúsculas espaciadas. */
 .kicker {
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   color: var(--text-faint);
 }
 
 /* ------------------------------- Tarjetas ------------------------------- */
+/* Hairline + elevación por sombra ambiental + highlight superior de 1px. */
 .card {
   position: relative;
+  padding: var(--sp-5);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0)) ,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
     var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* Vidrio sutil (glassmorphism). */
@@ -200,14 +268,14 @@ svg {
   background: var(--surface-glass);
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--line);
 }
 
 /* -------------------------------- Inputs -------------------------------- */
 .field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .field__label {
@@ -228,7 +296,7 @@ svg {
   left: 16px;
   color: var(--text-faint);
   pointer-events: none;
-  transition: color 0.18s ease;
+  transition: color 0.18s var(--ease);
 }
 
 .input-wrap:focus-within .input-wrap__icon {
@@ -237,15 +305,15 @@ svg {
 
 .input {
   width: 100%;
-  height: 56px;                 /* alto táctil grande */
-  padding: 0 18px 0 48px;       /* deja espacio al ícono */
+  height: 54px;
+  padding: 0 18px 0 48px;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
   color: var(--text);
   font-size: 1rem;
   outline: none;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease), background 0.18s var(--ease);
 }
 
 .input::placeholder {
@@ -255,7 +323,7 @@ svg {
 
 .input:focus {
   border-color: var(--accent);
-  background: #18254480;
+  background: var(--surface-3);
   box-shadow: var(--glow-accent);
 }
 
@@ -263,7 +331,7 @@ svg {
 .btn {
   position: relative;
   width: 100%;
-  height: 56px;
+  height: 54px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -272,14 +340,15 @@ svg {
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease, filter 0.2s ease;
+  transition: transform 0.12s var(--ease), box-shadow 0.2s var(--ease),
+    background 0.2s var(--ease), border-color 0.2s var(--ease), filter 0.2s var(--ease);
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
 }
 
 .btn:active {
-  transform: translateY(1px) scale(0.985);
+  transform: scale(0.97);
 }
 
 .btn:disabled {
@@ -287,39 +356,48 @@ svg {
   cursor: not-allowed;
 }
 
+/* Primario: gradiente firma con sombra-glow MÁS BAJA + shine al tocar. */
 .btn--primary {
-  background: linear-gradient(135deg, var(--cyan) -10%, var(--accent-bright) 35%, var(--accent-deep) 110%);
+  background: var(--grad-firma);
   color: #ffffff;
-  box-shadow: 0 10px 30px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 22px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
-
 .btn--primary:hover:not(:disabled) {
-  filter: brightness(1.06);
-  box-shadow: 0 14px 38px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  filter: brightness(1.05);
+  box-shadow: 0 10px 26px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
-
 /* Brillo que cruza el botón al tocar (sutil). */
 .btn--primary::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.26) 50%, transparent 70%);
   transform: translateX(-130%);
-  transition: transform 0.55s ease;
+  transition: transform 0.55s var(--ease);
 }
 .btn--primary:active::after {
   transform: translateX(130%);
 }
 
-.btn--ghost {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+/* Secundario: superficie sólida con hairline marcado (acción no protagonista). */
+.btn--secondary {
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
   color: var(--text);
 }
+.btn--secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+}
 
+/* Ghost: el más discreto. */
+.btn--ghost {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
 .btn--ghost:hover:not(:disabled) {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-soft);
+  background: var(--surface-3);
 }
 
 /* ------------------------------- Chips ---------------------------------- */
@@ -332,7 +410,7 @@ svg {
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--text-dim);
 }
@@ -345,9 +423,9 @@ svg {
   box-shadow: 0 0 8px currentColor;
 }
 
-.chip--verde { color: var(--success); border-color: rgba(47, 224, 173, 0.4); background: rgba(47, 224, 173, 0.1); }
-.chip--ambar { color: var(--warn); border-color: rgba(255, 184, 76, 0.4); background: rgba(255, 184, 76, 0.1); }
-.chip--rojo  { color: var(--danger); border-color: rgba(255, 90, 118, 0.4); background: rgba(255, 90, 118, 0.1); }
+.chip--verde { color: var(--success); border-color: rgba(43, 224, 166, 0.35); background: var(--success-soft); }
+.chip--ambar { color: var(--warn); border-color: rgba(255, 194, 75, 0.35); background: var(--warn-soft); }
+.chip--rojo  { color: var(--danger); border-color: rgba(255, 92, 114, 0.35); background: var(--danger-soft); }
 .chip--gris  { color: var(--text-dim); }
 
 /* ----------------------------- Utilidades ------------------------------- */
@@ -367,7 +445,7 @@ svg {
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
 }
 
 .alert {
@@ -375,14 +453,14 @@ svg {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   font-size: 0.9rem;
 }
 
 .alert--error {
-  background: rgba(255, 90, 118, 0.12);
-  border: 1px solid rgba(255, 90, 118, 0.35);
-  color: #ffb3c0;
+  background: var(--danger-soft);
+  border: 1px solid rgba(255, 92, 114, 0.32);
+  color: #ffb3bf;
 }
 
 .spin {
@@ -401,7 +479,7 @@ svg {
 
 /* Aparición escalonada: aplica .stagger al contenedor; los hijos suben. */
 .stagger > * {
-  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise 0.5s var(--ease) both;
 }
 .stagger > *:nth-child(1) { animation-delay: 0.02s; }
 .stagger > *:nth-child(2) { animation-delay: 0.08s; }
@@ -413,15 +491,15 @@ svg {
 /* ------------------------ Transición de página -------------------------- */
 .page-enter-active,
 .page-leave-active {
-  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.26s var(--ease), transform 0.26s var(--ease);
 }
 .page-enter-from {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(10px) scale(0.992);
 }
 .page-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(-6px) scale(0.992);
 }
 
 /* Respeta a quien prefiere menos movimiento. */

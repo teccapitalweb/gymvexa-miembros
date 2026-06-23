@@ -243,7 +243,7 @@ async function reintentarVinculo() {
 </template>
 
 <style scoped>
-.inicio { gap: 18px; }
+.inicio { gap: var(--sp-4); }
 
 .estado-centro {
   flex: 1;
@@ -351,7 +351,7 @@ async function reintentarVinculo() {
   height: 320px;
   border-radius: 50%;
   background: radial-gradient(circle, var(--accent-glow), transparent 60%);
-  opacity: 0.5;
+  opacity: 0.32;
   pointer-events: none;
 }
 .mcard__top {

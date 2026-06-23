@@ -386,7 +386,7 @@ onBeforeUnmount(async () => {
 </template>
 
 <style scoped>
-.vincular { gap: 18px; justify-content: flex-start; }
+.vincular { gap: var(--sp-4); justify-content: flex-start; }
 
 .vincular__halo {
   position: absolute;
@@ -398,7 +398,7 @@ onBeforeUnmount(async () => {
   border-radius: 50%;
   background: radial-gradient(circle, var(--accent-glow), transparent 62%);
   filter: blur(20px);
-  opacity: 0.6;
+  opacity: 0.38;
   pointer-events: none;
   z-index: 0;
 }
