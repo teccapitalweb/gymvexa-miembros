@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
 import { centavosAPesos } from '../composables/useDinero'
 import { interpretarMembresia } from '../composables/useMembresia'
+import ThemeToggle from '../components/ThemeToggle.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -40,6 +41,8 @@ async function cerrarSesion() {
 
 <template>
   <main class="screen screen--with-nav perfil stagger">
+    <ThemeToggle />
+
     <header class="perfil__head card">
       <div class="perfil__head-glow" aria-hidden="true"></div>
       <div class="avatar">

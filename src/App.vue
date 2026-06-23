@@ -5,7 +5,6 @@ import { useRoute } from 'vue-router'
 import { computed } from 'vue'
 import BottomNav from './components/BottomNav.vue'
 import InstallPrompt from './components/InstallPrompt.vue'
-import ThemeToggle from './components/ThemeToggle.vue'
 
 const route = useRoute()
 const mostrarNav = computed(() => !route.meta.publica && !route.meta.ocultarNav)
@@ -19,5 +18,4 @@ const mostrarNav = computed(() => !route.meta.publica && !route.meta.ocultarNav)
   </router-view>
   <BottomNav v-if="mostrarNav" />
   <InstallPrompt />
-  <ThemeToggle />
 </template>

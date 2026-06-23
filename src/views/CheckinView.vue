@@ -6,6 +6,7 @@ import { ref, computed, onBeforeUnmount } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useCheckinStore } from '../stores/checkin'
+import ThemeToggle from '../components/ThemeToggle.vue'
 
 const router = useRouter()
 const checkin = useCheckinStore()
@@ -158,6 +159,8 @@ const avisoMembresia = computed(() =>
 
 <template>
   <main class="screen screen--with-nav checkin">
+    <ThemeToggle />
+
     <header class="checkin__head">
       <h1 class="checkin__title">Check-in</h1>
       <p class="checkin__sub">Escanea el código QR de tu gimnasio</p>

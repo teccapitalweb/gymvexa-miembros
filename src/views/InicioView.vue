@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
 import { centavosAPesos } from '../composables/useDinero'
 import { interpretarMembresia } from '../composables/useMembresia'
+import ThemeToggle from '../components/ThemeToggle.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -91,6 +92,8 @@ async function reintentarVinculo() {
 
 <template>
   <main class="screen screen--with-nav inicio">
+    <ThemeToggle />
+
     <!-- Cargando vinculación -->
     <div v-if="socio.cargando && !socio.resuelto" class="estado-centro">
       <svg class="spin" width="34" height="34" viewBox="0 0 24 24" fill="none"
@@ -175,12 +178,6 @@ async function reintentarVinculo() {
             <p class="inicio__hi">Hola,</p>
             <h1 class="inicio__name display">{{ primerNombre }}</h1>
           </div>
-          <span class="inicio__pulse" :class="`inicio__pulse--${membresia.tono}`" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12h4l2.5 7L14 4l2.5 8H21" />
-            </svg>
-          </span>
         </header>
 
         <!-- Tarjeta de membresía (objeto firma, estilo wallet) -->

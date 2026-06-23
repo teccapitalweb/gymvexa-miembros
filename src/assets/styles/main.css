@@ -542,6 +542,10 @@ svg {
   --accent-deep: #2347e6;
   --accent-soft: rgba(47, 107, 255, 0.12);
 
+  /* Degradado de marca para números, con un punto de inicio más profundo
+     para que contraste bien sobre superficies claras. */
+  --grad-firma: linear-gradient(135deg, #18c8e6, #2f6bff 55%, #2347e6);
+
   /* ---- Glow más discreto en día ---- */
   --glow: rgba(47, 107, 255, 0.20);
   --accent-glow: rgba(47, 107, 255, 0.16);

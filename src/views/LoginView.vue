@@ -3,6 +3,7 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import ThemeToggle from '../components/ThemeToggle.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -68,6 +69,8 @@ async function entrarConGoogle() {
   <main class="screen login">
     <!-- Halo decorativo de fondo -->
     <div class="login__halo" aria-hidden="true"></div>
+
+    <ThemeToggle />
 
     <div class="login__top stagger">
       <!-- Logo: marca Gymvexa con glow -->
@@ -176,6 +179,17 @@ async function entrarConGoogle() {
   gap: 26px;
 }
 
+/* En login el contenido va centrado, así que el toggle se ancla arriba a la
+   derecha (fuera del bloque centrado) en vez de ir en el flujo. */
+.login :deep(.theme-toggle-bar) {
+  position: absolute;
+  top: calc(var(--safe-top) + 14px);
+  right: calc(var(--safe-right) + 16px);
+  width: auto;
+  margin: 0;
+  z-index: 2;
+}
+
 /* Halo radial detrás del contenido. */
 .login__halo {
   position: absolute;
@@ -247,6 +261,14 @@ async function entrarConGoogle() {
 .brand__name {
   font-size: 2.3rem;
   background: linear-gradient(180deg, #ffffff, #c7d8f5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* En modo día el degradado claro es invisible: usamos uno oscuro→azul. */
+:root[data-theme="light"] .brand__name {
+  background: linear-gradient(180deg, #0f1729, #2f6bff);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
