@@ -1,12 +1,14 @@
 <script setup>
-// Barra de navegación inferior (móvil) — Quiet Neon.
-// Inicio y Perfil a los lados; Check-in como FAB central elevado.
-// Solo estilo/estructura: las rutas y la navegación NO cambian.
+// Barra de navegación inferior (móvil) — estilo BioNova.
+// 5 accesos: Inicio · Videos · Check-in (FAB central) · Foro · Menú.
+// El botón "Menú" abre el menú lateral (drawer). La lógica de rutas no cambia.
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
+import { useDrawer } from '../composables/useDrawer'
 
 const route = useRoute()
 const activo = computed(() => route.name)
+const { abierto, abrir } = useDrawer()
 </script>
 
 <template>
@@ -20,14 +22,31 @@ const activo = computed(() => route.name)
       >
         <span class="nav-item__dot" aria-hidden="true"></span>
         <span class="nav-item__icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 10.5 12 3l9 7.5" />
             <path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5" />
             <path d="M9.5 21v-6h5v6" />
           </svg>
         </span>
         <span class="nav-item__label">Inicio</span>
+      </router-link>
+
+      <!-- Videos -->
+      <router-link
+        to="/videos"
+        class="nav-item"
+        :class="{ 'nav-item--active': activo === 'videos' }"
+      >
+        <span class="nav-item__dot" aria-hidden="true"></span>
+        <span class="nav-item__icon">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M10.3 8.7v6.6l5.4-3.3z" />
+          </svg>
+        </span>
+        <span class="nav-item__label">Videos</span>
       </router-link>
 
       <!-- Check-in (FAB central elevado) -->
@@ -49,22 +68,40 @@ const activo = computed(() => route.name)
         <span class="nav-fab__label">Check-in</span>
       </router-link>
 
-      <!-- Perfil -->
+      <!-- Foro -->
       <router-link
-        to="/perfil"
+        to="/foro"
         class="nav-item"
-        :class="{ 'nav-item--active': activo === 'perfil' }"
+        :class="{ 'nav-item--active': activo === 'foro' }"
       >
         <span class="nav-item__dot" aria-hidden="true"></span>
         <span class="nav-item__icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 20c0-3.5 3.6-6 8-6s8 2.5 8 6" />
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.5 11.3a7.5 7.5 0 0 1-10.6 6.83L4 20l1.67-5.9A7.5 7.5 0 1 1 20.5 11.3z" />
+            <path d="M9 10.5h6.5M9 13.5h4" />
           </svg>
         </span>
-        <span class="nav-item__label">Perfil</span>
+        <span class="nav-item__label">Foro</span>
       </router-link>
+
+      <!-- Menú (abre el menú lateral) -->
+      <button
+        type="button"
+        class="nav-item nav-item--btn"
+        :class="{ 'nav-item--active': abierto }"
+        @click="abrir"
+        aria-label="Abrir menú"
+      >
+        <span class="nav-item__dot" aria-hidden="true"></span>
+        <span class="nav-item__icon">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 7h16M4 12h16M4 17h10" />
+          </svg>
+        </span>
+        <span class="nav-item__label">Menú</span>
+      </button>
     </div>
   </nav>
 </template>
@@ -76,8 +113,8 @@ const activo = computed(() => route.name)
   right: 0;
   bottom: 0;
   z-index: 50;
-  /* Fondo más silencioso (vidrio sobrio, sin glow). */
-  background: rgba(6, 9, 16, 0.78);
+  /* Vidrio que se adapta al tema (claro/oscuro). */
+  background: var(--surface-glass);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   border-top: 1px solid var(--line);
@@ -94,7 +131,7 @@ const activo = computed(() => route.name)
   height: var(--nav-h);
   display: flex;
   align-items: stretch;
-  padding: 0 8px;
+  padding: 0 6px;
 }
 
 /* ---- Items laterales ---- */
@@ -107,21 +144,30 @@ const activo = computed(() => route.name)
   justify-content: center;
   gap: 4px;
   color: var(--text-faint);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   transition: color 0.2s var(--ease);
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Indicador activo sutil: línea corta arriba (sin glow pesado). */
+/* Reset cuando el item es un <button> (el de Menú). */
+.nav-item--btn {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Indicador activo sutil: línea corta arriba. */
 .nav-item__dot {
   position: absolute;
   top: 6px;
   width: 18px;
   height: 2.5px;
   border-radius: var(--r-pill);
-  background: var(--accent-bright);
+  background: var(--accent);
   opacity: 0;
   transform: scaleX(0.4);
   transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
@@ -131,20 +177,20 @@ const activo = computed(() => route.name)
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 30px;
+  width: 42px;
+  height: 28px;
   transition: transform 0.2s var(--ease);
 }
 .nav-item:active .nav-item__icon { transform: scale(0.9); }
 
-.nav-item--active { color: var(--accent-bright); }
+.nav-item--active { color: var(--accent); }
 .nav-item--active .nav-item__dot { opacity: 1; transform: scaleX(1); }
 
 /* ---- FAB central (Check-in) ---- */
 .nav-fab {
   position: relative;
   flex: 0 0 auto;
-  width: 84px;
+  width: 78px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -165,7 +211,6 @@ const activo = computed(() => route.name)
   border-radius: 50%;
   color: #fff;
   background: var(--grad-firma);
-  /* Un único glow intencional: este es EL acento del nav. */
   box-shadow: 0 8px 24px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.28);
   border: 3px solid var(--bg);
   transition: transform 0.18s var(--ease), box-shadow 0.2s var(--ease);
@@ -177,10 +222,10 @@ const activo = computed(() => route.name)
 }
 
 .nav-fab__label {
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.01em;
   transition: color 0.2s var(--ease);
 }
-.nav-fab--active { color: var(--accent-bright); }
+.nav-fab--active { color: var(--accent); }
 </style>

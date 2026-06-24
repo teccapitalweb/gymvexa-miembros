@@ -38,6 +38,30 @@ const routes = [
     component: () => import('../views/PerfilView.vue'),
     meta: { requiereSocio: true },
   },
+  {
+    path: '/videos',
+    name: 'videos',
+    component: () => import('../views/VideosView.vue'),
+    meta: { requiereSocio: true },
+  },
+  {
+    path: '/material',
+    name: 'material',
+    component: () => import('../views/MaterialView.vue'),
+    meta: { requiereSocio: true },
+  },
+  {
+    path: '/calculadora',
+    name: 'calculadora',
+    component: () => import('../views/CalculadoraView.vue'),
+    meta: { requiereSocio: true },
+  },
+  {
+    path: '/foro',
+    name: 'foro',
+    component: () => import('../views/ForoView.vue'),
+    meta: { requiereSocio: true },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/inicio' },
 ]
 

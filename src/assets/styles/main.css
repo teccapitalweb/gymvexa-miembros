@@ -177,6 +177,27 @@ svg {
   padding-bottom: calc(var(--safe-bottom) + var(--nav-h) + 28px);
 }
 
+/* Encabezado estándar de las pantallas internas (título + subtítulo). */
+.vista-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 2px 2px;
+}
+.vista-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.55rem;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0;
+}
+.vista-sub {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin: 0;
+}
+
 /* ------------------------------- Tipografía ----------------------------- */
 /* Escala tipográfica centralizada. */
 .display {
