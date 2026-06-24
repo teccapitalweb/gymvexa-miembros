@@ -21,5 +21,7 @@ const mostrarNav = computed(() => !route.meta.publica && !route.meta.ocultarNav)
   </router-view>
   <BottomNav v-if="mostrarNav" />
   <MenuDrawer v-if="mostrarNav" />
-  <InstallPrompt />
+  <!-- El banner de instalación se oculta en /instalar para no duplicar el botón
+       grande de esa página; en el resto de rutas funciona igual que siempre. -->
+  <InstallPrompt v-if="route.name !== 'instalar'" />
 </template>
