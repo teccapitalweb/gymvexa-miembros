@@ -71,6 +71,17 @@ function diasLabel(diasIds, corto = false) {
     .join(', ')
 }
 
+// "Tu semana" de la rutina activa: [{ diaLabel, sesion }] ordenado por día.
+const semanaActiva = computed(() => {
+  const a = activa.value
+  if (!a?.asignacion) return []
+  return DIAS_SEMANA.filter((d) => a.asignacion[d.id]).map((d) => ({
+    diaId: d.id,
+    diaLabel: d.label,
+    sesion: a.asignacion[d.id],
+  }))
+})
+
 // --- Filtros ---
 const fNivel = ref(null)
 const fObjetivo = ref(null)
@@ -236,18 +247,38 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
         <span>Elegir esta rutina</span>
       </button>
       <div v-else class="elegida">
-        <div class="elegida__info">
-          <span class="elegida__tag">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 6 9 17l-5-5" />
-            </svg>
-            Esta es tu rutina
-          </span>
-          <span v-if="activa?.dias?.length" class="elegida__dias">{{ diasLabel(activa.dias) }}</span>
+        <span class="elegida__tag">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          Esta es tu rutina
+        </span>
+
+        <!-- Tu semana (día → entrenamiento) -->
+        <div v-if="semanaActiva.length" class="semana">
+          <p class="semana__lab">Tu semana</p>
+          <ul class="semana__list">
+            <li v-for="s in semanaActiva" :key="s.diaId" class="semana__item">
+              <span class="semana__dia">{{ s.diaLabel }}</span>
+              <svg class="semana__arr" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+              <span class="semana__ses">{{ s.sesion }}</span>
+            </li>
+          </ul>
         </div>
+        <span v-else-if="activa?.dias?.length" class="elegida__dias">{{ diasLabel(activa.dias) }}</span>
+
+        <p class="semana__tip">
+          ¿Te atrasaste o cambió tu semana? Reacomoda tus días cuando quieras, sin problema.
+        </p>
+
         <div class="elegida__btns">
-          <button class="btn btn--ghost" @click="abrirProgramacion(rutinaAbierta, activa)">Reprogramar</button>
+          <button class="btn btn--primary" @click="abrirProgramacion(rutinaAbierta, activa)">
+            Reacomodar mi semana
+          </button>
           <button class="btn btn--ghost" @click="quitar">Quitar</button>
         </div>
       </div>
@@ -488,16 +519,13 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
 .elegir { height: 56px; margin-top: 2px; }
 .elegida {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
-  padding: 14px;
+  padding: 16px;
   border-radius: var(--r-md);
   border: 1px solid rgba(34, 197, 94, 0.32);
   background: var(--success-soft);
 }
-.elegida__info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .elegida__tag {
   display: inline-flex;
   align-items: center;
@@ -507,8 +535,33 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
   color: var(--success);
 }
 .elegida__dias { font-size: 0.84rem; color: var(--text-dim); font-weight: 600; }
-.elegida__btns { display: flex; gap: 8px; flex: 1; justify-content: flex-end; }
-.elegida .btn { width: auto; height: 42px; padding: 0 14px; }
+
+/* Tu semana (día → entrenamiento) */
+.semana { display: flex; flex-direction: column; gap: 7px; }
+.semana__lab {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+.semana__list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.semana__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.semana__dia { font-weight: 700; font-size: 0.86rem; min-width: 78px; }
+.semana__arr { color: var(--text-faint); flex: 0 0 auto; }
+.semana__ses { color: var(--cyan-bright); font-weight: 700; font-size: 0.86rem; }
+.semana__tip { font-size: 0.82rem; color: var(--text-dim); line-height: 1.45; }
+
+.elegida__btns { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
+.elegida .btn { width: auto; height: 46px; padding: 0 14px; }
 
 .actual__dias {
   display: inline-flex;

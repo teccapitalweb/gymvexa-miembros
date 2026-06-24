@@ -349,6 +349,64 @@ Se mantiene la recomendación de `MODELO-FITNESS-APP.md §6`:
 
 ---
 
-> **Estado:** diseño. No se construyó ninguna feature, ni se tocaron vistas de Britney,
-> reglas, ni el catálogo. Los pasos (a) y (d) son trabajo del **panel/reglas**; (b)/(c)
-> son de esta app y la casa de "Rutinas" se decide con Britney.
+## 8. Programación de días — lógica de descanso corregida (implementado)
+
+**Regla fitness correcta:** una rutina puede ir en **días seguidos** si cada día entrena
+**grupos musculares distintos** (mientras uno trabaja, el otro descansa). Solo exige
+descanso entre sesiones cuando **repite el mismo trabajo** cada día (full body).
+
+| Rutina | Estructura real | requiereDescanso | Por qué |
+|---|---|---|---|
+| R1 Full Body Principiante | Todo el cuerpo cada día | **true** | Repite todos los grupos cada sesión → recuperar |
+| R2 Full Body Glúteo&Pierna | 2 días pierna/glúteo + 1 upper | **true** | Repite pierna/glúteo en varias sesiones |
+| R3 Upper/Lower | Superior vs inferior alternos | **false** | Días seguidos OK: grupos distintos |
+| R4 PPL 3 días | Empuje/Jalón/Pierna | **false** | Días seguidos OK: grupos distintos |
+| R5 PPL 6 días | Empuje/Jalón/Pierna ×2 | **false** | Días seguidos OK: grupos distintos |
+| R6 Fuerza | Básicos pesados (full body) | **true** | Cargas altas sobre los mismos patrones → recuperar |
+| R7 Hipertrofia U/L | Superior vs inferior | **false** | Días seguidos OK: grupos distintos |
+| R8 Definición | Full body ×3 + glúteo/cardio | **true** | Cuerpo completo casi cada día |
+
+> La validación de descanso (advertir + pedir confirmación si hay días seguidos) **solo
+> se dispara** en las `true`. Las `false` muestran una nota informativa ("puedes entrenar
+> días seguidos").
+
+## 9. Asignar entrenamiento a cada día (reordenable) — implementado
+
+**Interacción (móvil-primero, selectores en vez de arrastrar):**
+1. El socio elige sus **N días de la semana** (chips Lun–Dom), como ya existía.
+2. El sistema **propone** una asignación automática en orden (1ª sesión → día más
+   temprano, etc.).
+3. Debajo aparece **cada SESIÓN de la rutina** (Día A/B… o Empuje/Jalón/Pierna) con una
+   fila de **mini-chips de los días elegidos**; el socio toca el día donde quiere esa
+   sesión. **Reasignación con intercambio:** si elige un día ya ocupado por otra sesión,
+   ambas se **intercambian** automáticamente → la asignación siempre es válida (cada día
+   elegido = exactamente una sesión, sin huecos ni duplicados). Es lo más simple y a
+   prueba de errores en móvil (nada de drag&drop ni callejones sin salida).
+4. La **validación de descanso** corre sobre el conjunto de días elegidos (con las reglas
+   corregidas), independientemente de qué sesión caiga en cuál día.
+
+## 10. Flexibilidad cuando te atrasas — implementado (sin backend) + pendiente
+
+**Tono:** siempre flexible, nunca regaña ("¿Lo mueves a otro día?", no "fallaste").
+
+**Lo viable HOY sin backend (a nivel de PROGRAMACIÓN, en localStorage):**
+- En el detalle de **tu rutina activa** se muestra **"Tu semana"** (día → sesión) y un
+  acceso **"Reacomodar mi semana"** que reabre el programador **precargado** con tus días
+  y tu asignación actual. Ahí puedes **mover una sesión a otro día** (mismo intercambio) o
+  rehacer la semana en segundos. Se guarda al instante en `localStorage`.
+- Mensaje amable: "¿Te atrasaste o cambió tu semana? Reacomoda tus días cuando quieras."
+
+**Pendiente para la fase de progreso (requiere backend / registro de entrenamientos):**
+- Marcar una sesión como **hecha / pendiente** y conservar ese **histórico**.
+- **Recuperar** un entrenamiento perdido como evento real (no solo reordenar el plan) y
+  alimentar **rachas/progreso**.
+- Estos necesitan `socios/{socioId}/entrenamientos` (modelo `MODELO-RUTINAS.md §4`) y
+  reglas R2; se dejan para la fase C/A del plan general. El diseño actual es **compatible**:
+  reacomodar el plan no choca con registrar lo realmente hecho después.
+
+---
+
+> **Estado:** §1–§7 son diseño; §8–§10 ya están **implementados** en `RutinasView.vue` /
+> `ProgramarRutina.vue` / `rutinasPredisenadas.js` (sin backend, sin tocar vistas de
+> Britney). Los pasos (a) y (d) y lo "pendiente" de §10 son trabajo de **panel/reglas/
+> backend**.

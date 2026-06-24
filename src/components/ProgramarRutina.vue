@@ -3,7 +3,7 @@
 // semana la hará. Asigna cada sesión de la rutina (Día A/B…, Empuje/Jalón…) al día
 // de la semana elegido, en orden. Valida el descanso: si la rutina lo requiere y el
 // socio elige días seguidos, ADVIERTE y pide confirmación explícita (no lo impide).
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { DIAS_SEMANA } from '../data/rutinasPredisenadas'
 
 const props = defineProps({
@@ -45,14 +45,72 @@ const diasOrdenados = computed(() =>
   DIAS_SEMANA.filter((d) => seleccion.value.includes(d.id)),
 )
 
-// Asignación sesión→día (en orden de semana): Lunes=Día A, Miércoles=Día B, …
-const asignacion = computed(() =>
-  diasOrdenados.value.map((d, i) => ({
-    diaId: d.id,
-    diaLabel: d.label,
-    sesion: props.rutina.dias[i]?.nombre || `Sesión ${i + 1}`,
-  })),
+// --- Asignación EDITABLE: sesionDia[i] = id del día de semana de la sesión i ---
+// (las sesiones son props.rutina.dias; siempre hay tantas como diasPorSemana).
+const sesionDia = ref([])
+
+// Asignación por defecto: la sesión i cae en el i-ésimo día (orden de semana).
+function asignacionPorDefecto() {
+  return diasOrdenados.value.map((d) => d.id)
+}
+
+// Reconstruye desde una programación previa (al reacomodar/reprogramar): respeta qué
+// sesión iba en qué día; rellena huecos con los días libres.
+function reconstruirDesdeInicial() {
+  const asig = props.inicial?.asignacion
+  if (!asig || !lleno.value) return false
+  const arr = new Array(props.rutina.dias.length).fill(null)
+  for (const [diaId, sesionNombre] of Object.entries(asig)) {
+    if (!seleccion.value.includes(diaId)) continue
+    const si = props.rutina.dias.findIndex((s) => s.nombre === sesionNombre)
+    if (si >= 0 && arr[si] === null) arr[si] = diaId
+  }
+  const usados = new Set(arr.filter(Boolean))
+  const libres = diasOrdenados.value.map((d) => d.id).filter((id) => !usados.has(id))
+  for (let i = 0; i < arr.length; i++) if (!arr[i]) arr[i] = libres.shift()
+  if (arr.every(Boolean)) {
+    sesionDia.value = arr
+    return true
+  }
+  return false
+}
+
+// Init: precarga la asignación previa si la hay; si no, la automática.
+if (!reconstruirDesdeInicial() && lleno.value) {
+  sesionDia.value = asignacionPorDefecto()
+}
+
+// Si cambia el conjunto de días elegidos, rehacemos la asignación automática.
+watch(
+  seleccion,
+  () => {
+    sesionDia.value = lleno.value ? asignacionPorDefecto() : []
+  },
+  { deep: true },
 )
+
+const diaDeSesion = (si) => sesionDia.value[si] || null
+
+// Reasigna la sesión `si` al día `diaId`. Si ese día ya lo tenía otra sesión, se
+// INTERCAMBIAN (la otra sesión hereda el día que tenía esta) → siempre válido.
+function asignarSesion(si, diaId) {
+  if (!lleno.value) return
+  const arr = sesionDia.value.slice()
+  const otro = arr.findIndex((d, i) => d === diaId && i !== si)
+  if (otro >= 0) arr[otro] = arr[si]
+  arr[si] = diaId
+  sesionDia.value = arr
+}
+
+// "Tu semana" (día → sesión), ordenado por día de la semana, derivado de sesionDia.
+const asignacion = computed(() => {
+  if (!lleno.value || sesionDia.value.length !== props.rutina.dias.length) return []
+  const pares = props.rutina.dias.map((s, i) => ({ diaId: sesionDia.value[i], sesion: s.nombre }))
+  return DIAS_SEMANA.filter((d) => pares.some((p) => p.diaId === d.id)).map((d) => {
+    const p = pares.find((x) => x.diaId === d.id)
+    return { diaId: d.id, diaLabel: d.label, sesion: p.sesion }
+  })
+})
 
 // Pares de días CONSECUTIVOS (semana cíclica: domingo y lunes también cuentan).
 const consecutivos = computed(() => {
@@ -142,19 +200,25 @@ function guardar() {
         {{ faltan === 1 ? 'día' : 'días' }} por elegir.
       </p>
 
-      <!-- Asignación sesión → día -->
-      <div v-if="asignacion.length" class="asig">
-        <p class="asig__lab">Tu semana</p>
+      <!-- Asignación editable: cada sesión → un día elegido (reordenable) -->
+      <div v-if="lleno" class="asig">
+        <p class="asig__lab">Asigna cada entrenamiento a un día</p>
         <ul class="asig__list">
-          <li v-for="a in asignacion" :key="a.diaId" class="asig__item">
-            <span class="asig__dia">{{ a.diaLabel }}</span>
-            <svg class="asig__arr" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-            <span class="asig__ses">{{ a.sesion }}</span>
+          <li v-for="(sesion, si) in rutina.dias" :key="si" class="asigx">
+            <span class="asigx__ses">{{ sesion.nombre }}</span>
+            <div class="asigx__dias">
+              <button
+                v-for="d in diasOrdenados"
+                :key="d.id"
+                type="button"
+                class="ddot"
+                :class="{ 'ddot--on': diaDeSesion(si) === d.id }"
+                @click="asignarSesion(si, d.id)"
+              >{{ d.corto }}</button>
+            </div>
           </li>
         </ul>
+        <p class="asig__tip">Toca un día para mover ahí ese entrenamiento; si el día ya está ocupado, se intercambian.</p>
       </div>
 
       <!-- Validación de descanso -->
@@ -319,19 +383,44 @@ function guardar() {
   letter-spacing: 0.1em;
   color: var(--text-faint);
 }
-.asig__list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-.asig__item {
+.asig__list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.asigx {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  padding: 9px 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
   border-radius: var(--r-sm);
   background: var(--surface-2);
   border: 1px solid var(--line);
 }
-.asig__dia { font-weight: 700; font-size: 0.9rem; min-width: 84px; }
-.asig__arr { color: var(--text-faint); flex: 0 0 auto; }
-.asig__ses { color: var(--cyan-bright); font-weight: 700; font-size: 0.9rem; }
+.asigx__ses { font-weight: 700; font-size: 0.9rem; color: var(--text); min-width: 0; }
+.asigx__dias { display: flex; gap: 5px; flex-wrap: wrap; }
+.ddot {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  height: 34px;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.14s var(--ease), border-color 0.14s var(--ease), background 0.14s var(--ease);
+}
+.ddot:active { transform: scale(0.93); }
+.ddot--on {
+  color: #04121a;
+  background: var(--cyan-bright);
+  border-color: transparent;
+}
+.asig__tip { font-size: 0.76rem; color: var(--text-faint); line-height: 1.4; }
 
 /* Avisos */
 .aviso { display: flex; gap: 12px; padding: 13px 15px; border-radius: var(--r-md); }

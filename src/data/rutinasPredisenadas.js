@@ -90,7 +90,7 @@ export const RUTINAS_PREDISENADAS = [
     reglasDescanso: {
       requiereDescansoEntreSesiones: true,
       notaDescanso:
-        'Cada sesión es de cuerpo completo con énfasis en glúteo y pierna: descansa al menos un día entre sesiones.',
+        'Repite el trabajo de pierna y glúteo en varias sesiones: deja al menos un día de descanso entre entrenamientos para recuperar.',
     },
     dias: [
       {
@@ -137,9 +137,9 @@ export const RUTINAS_PREDISENADAS = [
     descripcion: 'Tren superior e inferior en días alternos. Ideal para 4 días con buen volumen.',
     paraQuien: 'Quien ya domina la técnica y entrena 4 días.',
     reglasDescanso: {
-      requiereDescansoEntreSesiones: true,
+      requiereDescansoEntreSesiones: false,
       notaDescanso:
-        'Alterna superior e inferior; aun así conviene no entrenar dos días seguidos. Ideal: 2 días, descanso, 2 días.',
+        'Puedes entrenar días seguidos: alternas tren superior e inferior, así un grupo descansa mientras el otro trabaja. Deja 1-2 días de descanso a la semana.',
     },
     dias: [
       {
@@ -200,9 +200,9 @@ export const RUTINAS_PREDISENADAS = [
     descripcion: 'Empuje, jalón y pierna en tres días. Un clásico para ganar músculo con una vuelta por semana.',
     paraQuien: 'Quien entrena 3 días y busca hipertrofia.',
     reglasDescanso: {
-      requiereDescansoEntreSesiones: true,
+      requiereDescansoEntreSesiones: false,
       notaDescanso:
-        'Con 3 días, distribúyelos con descanso entre cada uno (ej. lunes, miércoles, viernes) para recuperar.',
+        'Puedes entrenar días seguidos: empuje, jalón y pierna trabajan grupos distintos. Aun así, con 3 días puedes espaciarlos si lo prefieres.',
     },
     dias: [
       {
@@ -380,9 +380,9 @@ export const RUTINAS_PREDISENADAS = [
     descripcion: 'Upper/Lower enfocado en volumen y aislamiento, reps medias-altas para máximo crecimiento.',
     paraQuien: 'Quien prioriza ganar masa muscular.',
     reglasDescanso: {
-      requiereDescansoEntreSesiones: true,
+      requiereDescansoEntreSesiones: false,
       notaDescanso:
-        'Volumen alto por grupo: evita días seguidos para recuperar. Ideal: 2 días, descanso, 2 días.',
+        'Puedes entrenar días seguidos: alternas superior e inferior, así cada grupo se recupera mientras trabaja el otro. Deja 1-2 días de descanso a la semana.',
     },
     dias: [
       {
