@@ -5,8 +5,8 @@ import Proximamente from '../components/Proximamente.vue'
 <template>
   <main class="screen screen--with-nav">
     <header class="vista-head">
-      <h1 class="vista-title">Rutinas y material</h1>
-      <p class="vista-sub">Planes de entrenamiento y guías para descargar.</p>
+      <h1 class="vista-title">Material</h1>
+      <p class="vista-sub">Guías y documentos de tu gimnasio.</p>
     </header>
 
     <Proximamente

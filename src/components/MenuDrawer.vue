@@ -110,7 +110,7 @@ async function cerrarSesion() {
               <path d="M9 13h6M9 17h4" />
             </svg>
           </span>
-          <span class="ditem__label">Rutinas y material</span>
+          <span class="ditem__label">Material</span>
           <span class="ditem__chev" aria-hidden="true">›</span>
         </button>
         <button class="ditem" :class="{ 'ditem--active': esActivo('calculadora') }" @click="ir('/calculadora')">

@@ -6,9 +6,11 @@ import { ref, computed, onBeforeUnmount } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useCheckinStore } from '../stores/checkin'
+import { useSocioStore } from '../stores/socio'
 
 const router = useRouter()
 const checkin = useCheckinStore()
+const socio = useSocioStore()
 
 const ID_LECTOR = 'qr-lector'
 let instancia = null          // instancia de Html5Qrcode
@@ -131,7 +133,11 @@ const tituloResultado = computed(() => {
   const r = resultado.value
   if (!r) return ''
   if (r.registrado === false) return 'Ya estabas registrado'
-  return esSalida.value ? '¡Hasta pronto!' : '¡Bienvenido!'
+  if (esSalida.value) return '¡Felicidades!'
+  const g = socio.datos?.genero
+  if (g === 'masculino') return '¡Bienvenido!'
+  if (g === 'femenino') return '¡Bienvenida!'
+  return '¡Hola!'
 })
 
 // Tiempo de permanencia (solo en salida): "Estuviste 45 min" / "Estuviste 1 h 5 min".
@@ -154,6 +160,23 @@ const avisoMembresia = computed(() =>
     ? 'Acceso al corriente.'
     : 'Tu membresía está vencida. Acércate a recepción.',
 )
+
+// Saludo según la hora actual.
+const saludoHora = computed(() => {
+  const h = new Date().getHours()
+  if (h < 12) return 'Buenos días'
+  if (h < 19) return 'Buenas tardes'
+  return 'Buenas noches'
+})
+
+// Frase fija según entrada/salida.
+const fraseMotiv = computed(() => {
+  const r = resultado.value
+  if (!r || r.registrado === false) return ''
+  return esSalida.value
+    ? '¡Nos vemos pronto!'
+    : 'No te vayas dejando algo sin terminar.'
+})
 </script>
 
 <template>
@@ -186,9 +209,19 @@ const avisoMembresia = computed(() =>
         </svg>
       </span>
 
+      <p class="resultado__saludo">{{ saludoHora }}</p>
       <h2 class="resultado__title">{{ tituloResultado }}</h2>
       <p v-if="resultado.nombre" class="resultado__nombre">{{ resultado.nombre }}</p>
       <p class="resultado__hora">{{ horaLegible(resultado.fechaHora) }}</p>
+
+      <!-- Frase motivadora (solo en registro real, no en duplicado) -->
+      <div v-if="fraseMotiv && resultado.registrado !== false" class="frase">
+        <svg class="frase__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l1.7 4.8L18.5 9.5l-4.8 1.7L12 16l-1.7-4.8L5.5 9.5l4.8-1.7z" />
+        </svg>
+        <span>{{ fraseMotiv }}</span>
+      </div>
 
       <!-- Permanencia (solo en salida con duración) -->
       <div v-if="esSalida && permanenciaTexto" class="permanencia">
@@ -528,4 +561,31 @@ const avisoMembresia = computed(() =>
   font-weight: 700;
   font-size: 0.96rem;
 }
+
+/* Saludo por hora (kicker arriba del título). */
+.resultado__saludo {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  margin-bottom: -4px;
+}
+/* Frase motivadora en recuadro sutil. */
+.frase {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+  text-align: left;
+}
+.frase__ic { flex: 0 0 auto; width: 18px; height: 18px; color: var(--accent); }
 </style>
