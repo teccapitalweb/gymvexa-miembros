@@ -169,6 +169,9 @@ async function entrarConGoogle() {
       </button>
     </form>
 
+    <p class="login__foot">
+      ¿Primera vez? <router-link class="login__link" to="/instalar">Instala la app</router-link>
+    </p>
     <p class="login__foot">¿Problemas para entrar? Acércate a recepción de tu gym.</p>
   </main>
 </template>
@@ -307,5 +310,11 @@ async function entrarConGoogle() {
   text-align: center;
   font-size: 0.82rem;
   color: var(--text-faint);
+}
+.login__link {
+  color: var(--cyan-bright);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 </style>

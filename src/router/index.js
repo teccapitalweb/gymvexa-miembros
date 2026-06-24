@@ -13,6 +13,14 @@ const routes = [
     meta: { publica: true },
   },
   {
+    // Pantalla pública "Instala la app": pensada para llegar por QR pegado en el
+    // gym. No requiere login (alguien que aún no es socio puede instalar la PWA).
+    path: '/instalar',
+    name: 'instalar',
+    component: () => import('../views/InstalarView.vue'),
+    meta: { publica: true },
+  },
+  {
     // Pantalla "Vincula tu cuenta": requiere sesión pero NO requiere el claim de
     // socio (es justo donde se obtiene). Acepta el deep link /vincular?c=CODIGO.
     path: '/vincular',
