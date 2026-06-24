@@ -645,3 +645,15 @@ body,
 input, .chip, .alert {
   transition: background-color 0.35s var(--ease), border-color 0.35s var(--ease), color 0.35s var(--ease);
 }
+
+/* Solo durante el instante del toggle de tema (useTema.js añade y luego quita esta
+   clase): se neutralizan TODAS las transiciones para que el cambio de color sea
+   instantáneo y no se produzca el tirón (animar superficies grandes bajo las capas
+   con backdrop-filter). Fuera de ese instante, las transiciones normales (hover,
+   focus, press, página) siguen idénticas. Incluye ::before/::after para cubrir el
+   aurora de body::before y demás pseudo-elementos. */
+html.tema-cambiando *,
+html.tema-cambiando *::before,
+html.tema-cambiando *::after {
+  transition: none !important;
+}

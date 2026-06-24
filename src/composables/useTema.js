@@ -21,6 +21,23 @@ function aplicar(valor) {
   if (meta) meta.setAttribute('content', THEME_COLOR[valor] || THEME_COLOR.dark)
 }
 
+// Cambia el tema SIN animar: neutraliza las transiciones solo durante el instante
+// del toggle (clase `tema-cambiando` en <html>) y las restaura al frame siguiente.
+// Evita el tirón de animar el color de las superficies grandes bajo las capas con
+// backdrop-filter; las transiciones normales (hover, focus, página) quedan intactas.
+function aplicarSinAnimar(valor) {
+  const root = document.documentElement
+  root.classList.add('tema-cambiando')
+  aplicar(valor)
+  // Doble requestAnimationFrame: el cambio de color se pinta con las transiciones
+  // ya desactivadas, y solo después (frame siguiente) volvemos a habilitarlas.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      root.classList.remove('tema-cambiando')
+    })
+  })
+}
+
 // Se llama UNA vez al arrancar (en main.js), antes de montar, para evitar parpadeo.
 export function initTema() {
   let guardado = null
@@ -36,7 +53,7 @@ export function initTema() {
 export function useTema() {
   function toggle() {
     tema.value = tema.value === 'light' ? 'dark' : 'light'
-    aplicar(tema.value)
+    aplicarSinAnimar(tema.value)
     try {
       localStorage.setItem(STORAGE_KEY, tema.value)
     } catch {
