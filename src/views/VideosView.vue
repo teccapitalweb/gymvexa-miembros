@@ -8,7 +8,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useSocioStore } from '../stores/socio'
 import { categoriaLabel } from '../data/categoriasContenido'
-import { gradientePortada, portadaDe } from '../data/portadasCategorias'
+import { gradientePortada, fotoPortada } from '../data/portadasCategorias'
 import { urlAEmbed } from '../composables/useVideoEmbed'
 
 const socioStore = useSocioStore()
@@ -178,8 +178,14 @@ const embedActual = computed(() =>
           @click="abrir(v)"
         >
           <span class="vid-thumb" :style="{ background: gradientePortada(v.categoria) }">
-            <span class="vid-thumb__glow" aria-hidden="true"></span>
-            <span class="vid-thumb__wm" aria-hidden="true" v-html="portadaDe(v.categoria).icon"></span>
+            <img
+              class="vid-thumb__img"
+              :src="fotoPortada(v.categoria)"
+              :alt="categoriaLabel(v.categoria)"
+              loading="lazy"
+              @error="(e) => (e.target.style.display = 'none')"
+            />
+            <span class="vid-thumb__shade" aria-hidden="true"></span>
             <span class="vid-thumb__cat">{{ categoriaLabel(v.categoria) }}</span>
             <span class="vid-thumb__play" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -335,26 +341,20 @@ const embedActual = computed(() =>
   aspect-ratio: 16 / 9;
   overflow: hidden;
 }
-.vid-thumb__glow {
+.vid-thumb__img {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(80% 60% at 50% -10%, rgba(255, 255, 255, 0.28), transparent 60%),
-    radial-gradient(90% 90% at 110% 120%, rgba(0, 0, 0, 0.28), transparent 60%);
-  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
-.vid-thumb__wm {
+.vid-thumb__shade {
   position: absolute;
-  right: -8px;
-  bottom: -14px;
-  width: 96px;
-  height: 96px;
-  color: #fff;
-  opacity: 0.22;
-  transform: rotate(-8deg);
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 30%, rgba(0, 0, 0, 0.62) 100%);
   pointer-events: none;
 }
-.vid-thumb__wm :deep(svg) { width: 100%; height: 100%; }
 .vid-thumb__cat {
   position: absolute;
   left: 13px;
