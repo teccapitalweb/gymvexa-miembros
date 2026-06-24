@@ -4,39 +4,72 @@
 // La elección se guarda en localStorage (v1, sin backend). El registro de avance es
 // fase posterior (aquí solo ver y elegir).
 import { ref, computed } from 'vue'
-import { RUTINAS_PREDISENADAS, NIVELES, OBJETIVOS } from '../data/rutinasPredisenadas'
+import { RUTINAS_PREDISENADAS, NIVELES, OBJETIVOS, DIAS_SEMANA } from '../data/rutinasPredisenadas'
+import ProgramarRutina from '../components/ProgramarRutina.vue'
 
 const STORAGE_KEY = 'gv-rutina-activa'
 
-// --- Elección persistida ---
-const rutinaActivaId = ref(leerActiva())
+// --- Rutina activa persistida ---
+// Forma: { rutinaId, dias: [...], asignacion: {diaId: sesion}, rompeDescanso }
+const activa = ref(leerActiva())
 function leerActiva() {
   try {
-    return localStorage.getItem(STORAGE_KEY) || null
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    // Compat: la versión anterior guardaba solo el id como string plano.
+    if (raw[0] !== '{') return { rutinaId: raw, dias: [], asignacion: {}, rompeDescanso: false }
+    const obj = JSON.parse(raw)
+    return obj && obj.rutinaId ? obj : null
   } catch {
     return null
   }
 }
-function elegir(id) {
-  rutinaActivaId.value = id
+function persistir(obj) {
+  activa.value = obj
   try {
-    localStorage.setItem(STORAGE_KEY, id)
+    if (obj) localStorage.setItem(STORAGE_KEY, JSON.stringify(obj))
+    else localStorage.removeItem(STORAGE_KEY)
   } catch {
-    /* sin localStorage: la elección vale solo en esta sesión */
+    /* sin localStorage: vale solo en esta sesión */
   }
 }
 function quitar() {
-  rutinaActivaId.value = null
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    /* no pasa nada */
-  }
+  persistir(null)
 }
 
+const rutinaActivaId = computed(() => activa.value?.rutinaId || null)
 const rutinaActiva = computed(
   () => RUTINAS_PREDISENADAS.find((r) => r.id === rutinaActivaId.value) || null,
 )
+
+// --- Programación de días (componente ProgramarRutina) ---
+const programando = ref(false)
+const rutinaAProgramar = ref(null)
+const progInicial = ref(null)
+function abrirProgramacion(rutina, inicial = null) {
+  rutinaAProgramar.value = rutina
+  progInicial.value = inicial
+  programando.value = true
+}
+function onGuardarProgramacion(payload) {
+  if (rutinaAProgramar.value) {
+    persistir({ rutinaId: rutinaAProgramar.value.id, ...payload })
+  }
+  cancelarProgramacion()
+}
+function cancelarProgramacion() {
+  programando.value = false
+  rutinaAProgramar.value = null
+  progInicial.value = null
+}
+
+// Etiqueta legible de los días programados ("Lunes, Miércoles, Viernes").
+function diasLabel(diasIds, corto = false) {
+  if (!Array.isArray(diasIds) || !diasIds.length) return ''
+  return DIAS_SEMANA.filter((d) => diasIds.includes(d.id))
+    .map((d) => (corto ? d.corto : d.label))
+    .join(', ')
+}
 
 // --- Filtros ---
 const fNivel = ref(null)
@@ -190,11 +223,11 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
         </ul>
       </section>
 
-      <!-- Elegir / quitar -->
+      <!-- Elegir / programación actual -->
       <button
         v-if="rutinaActivaId !== rutinaAbierta.id"
         class="btn btn--primary elegir"
-        @click="elegir(rutinaAbierta.id)"
+        @click="abrirProgramacion(rutinaAbierta)"
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -203,14 +236,20 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
         <span>Elegir esta rutina</span>
       </button>
       <div v-else class="elegida">
-        <span class="elegida__tag">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
-          Esta es tu rutina
-        </span>
-        <button class="btn btn--ghost" @click="quitar">Quitar</button>
+        <div class="elegida__info">
+          <span class="elegida__tag">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            Esta es tu rutina
+          </span>
+          <span v-if="activa?.dias?.length" class="elegida__dias">{{ diasLabel(activa.dias) }}</span>
+        </div>
+        <div class="elegida__btns">
+          <button class="btn btn--ghost" @click="abrirProgramacion(rutinaAbierta, activa)">Reprogramar</button>
+          <button class="btn btn--ghost" @click="quitar">Quitar</button>
+        </div>
       </div>
     </template>
 
@@ -225,6 +264,13 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
       <button v-if="rutinaActiva" class="actual" @click="abrir(rutinaActiva.id)">
         <span class="actual__kicker">Tu rutina actual</span>
         <span class="actual__name">{{ rutinaActiva.nombre }}</span>
+        <span v-if="activa?.dias?.length" class="actual__dias">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18M8 2.5v4M16 2.5v4" />
+          </svg>
+          {{ diasLabel(activa.dias) }}
+        </span>
         <span class="actual__meta">
           {{ objetivoLabel(rutinaActiva.objetivo) }} · {{ nivelLabel(rutinaActiva.nivel) }} ·
           {{ rutinaActiva.diasPorSemana }} días/sem
@@ -321,6 +367,15 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
         </div>
       </section>
     </template>
+
+    <!-- Programación de días (overlay) -->
+    <ProgramarRutina
+      v-if="programando && rutinaAProgramar"
+      :rutina="rutinaAProgramar"
+      :inicial="progInicial"
+      @guardar="onGuardarProgramacion"
+      @cancelar="cancelarProgramacion"
+    />
   </main>
 </template>
 
@@ -435,12 +490,14 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 14px;
   border-radius: var(--r-md);
   border: 1px solid rgba(34, 197, 94, 0.32);
   background: var(--success-soft);
 }
+.elegida__info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .elegida__tag {
   display: inline-flex;
   align-items: center;
@@ -449,7 +506,19 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
   font-size: 0.95rem;
   color: var(--success);
 }
-.elegida .btn { width: auto; height: 42px; padding: 0 16px; }
+.elegida__dias { font-size: 0.84rem; color: var(--text-dim); font-weight: 600; }
+.elegida__btns { display: flex; gap: 8px; flex: 1; justify-content: flex-end; }
+.elegida .btn { width: auto; height: 42px; padding: 0 14px; }
+
+.actual__dias {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--cyan-bright);
+  margin-top: 2px;
+}
 
 /* ---------- Tu rutina actual (hub) ---------- */
 .actual {

@@ -38,6 +38,11 @@ export const RUTINAS_PREDISENADAS = [
     diasPorSemana: 3,
     descripcion: 'Cuerpo completo en cada sesión. El mejor punto de partida para empezar desde cero.',
     paraQuien: 'Quien empieza desde cero.',
+    reglasDescanso: {
+      requiereDescansoEntreSesiones: true,
+      notaDescanso:
+        'Trabaja todo el cuerpo en cada sesión: deja al menos un día de descanso entre entrenamientos para recuperar.',
+    },
     dias: [
       {
         nombre: 'Día A',
@@ -82,6 +87,11 @@ export const RUTINAS_PREDISENADAS = [
     diasPorSemana: 3,
     descripcion: 'Cuerpo completo con prioridad en glúteo y pierna. Orientada a mujeres, abierta a cualquiera.',
     paraQuien: 'Quien quiere priorizar glúteo y pierna.',
+    reglasDescanso: {
+      requiereDescansoEntreSesiones: true,
+      notaDescanso:
+        'Cada sesión es de cuerpo completo con énfasis en glúteo y pierna: descansa al menos un día entre sesiones.',
+    },
     dias: [
       {
         nombre: 'Día A · Glúteo dominante',
@@ -126,6 +136,11 @@ export const RUTINAS_PREDISENADAS = [
     diasPorSemana: 4,
     descripcion: 'Tren superior e inferior en días alternos. Ideal para 4 días con buen volumen.',
     paraQuien: 'Quien ya domina la técnica y entrena 4 días.',
+    reglasDescanso: {
+      requiereDescansoEntreSesiones: true,
+      notaDescanso:
+        'Alterna superior e inferior; aun así conviene no entrenar dos días seguidos. Ideal: 2 días, descanso, 2 días.',
+    },
     dias: [
       {
         nombre: 'Upper A',
@@ -184,6 +199,11 @@ export const RUTINAS_PREDISENADAS = [
     diasPorSemana: 3,
     descripcion: 'Empuje, jalón y pierna en tres días. Un clásico para ganar músculo con una vuelta por semana.',
     paraQuien: 'Quien entrena 3 días y busca hipertrofia.',
+    reglasDescanso: {
+      requiereDescansoEntreSesiones: true,
+      notaDescanso:
+        'Con 3 días, distribúyelos con descanso entre cada uno (ej. lunes, miércoles, viernes) para recuperar.',
+    },
     dias: [
       {
         nombre: 'Día 1 · Empuje (Push)',
@@ -231,6 +251,11 @@ export const RUTINAS_PREDISENADAS = [
     diasPorSemana: 6,
     descripcion: 'PPL dos veces por semana con variación A/B. Alto volumen para avanzados con 6 días.',
     paraQuien: 'Avanzados con disponibilidad de 6 días.',
+    reglasDescanso: {
+      requiereDescansoEntreSesiones: false,
+      notaDescanso:
+        'Al alternar grupos musculares, sí puedes entrenar días seguidos. Deja al menos un día de descanso a la semana.',
+    },
     dias: [
       {
         nombre: 'Día 1 · Push A',
@@ -311,6 +336,11 @@ export const RUTINAS_PREDISENADAS = [
     diasPorSemana: 3,
     descripcion: 'Básicos pesados (sentadilla, press banca, peso muerto) con reps bajas y descansos largos.',
     paraQuien: 'Quien busca fuerza en los grandes levantamientos.',
+    reglasDescanso: {
+      requiereDescansoEntreSesiones: true,
+      notaDescanso:
+        'Levantamientos pesados: necesitan buena recuperación. Deja un día de descanso entre sesiones.',
+    },
     dias: [
       {
         nombre: 'Día 1',
@@ -349,6 +379,11 @@ export const RUTINAS_PREDISENADAS = [
     diasPorSemana: 4,
     descripcion: 'Upper/Lower enfocado en volumen y aislamiento, reps medias-altas para máximo crecimiento.',
     paraQuien: 'Quien prioriza ganar masa muscular.',
+    reglasDescanso: {
+      requiereDescansoEntreSesiones: true,
+      notaDescanso:
+        'Volumen alto por grupo: evita días seguidos para recuperar. Ideal: 2 días, descanso, 2 días.',
+    },
     dias: [
       {
         nombre: 'Upper A',
@@ -408,6 +443,11 @@ export const RUTINAS_PREDISENADAS = [
     diasPorSemana: 4,
     descripcion: 'Full body en circuito con descansos cortos y cardio al cierre para bajar grasa y tonificar.',
     paraQuien: 'Quien quiere bajar grasa y tonificar.',
+    reglasDescanso: {
+      requiereDescansoEntreSesiones: true,
+      notaDescanso:
+        'Cada sesión es de cuerpo completo: intercala días de descanso entre entrenamientos.',
+    },
     dias: [
       {
         nombre: 'Día 1 · Full body A',
@@ -470,4 +510,17 @@ export const OBJETIVOS = [
   { id: 'musculo', label: 'Músculo' },
   { id: 'fuerza', label: 'Fuerza' },
   { id: 'definicion', label: 'Definición' },
+]
+
+// Días de la semana para programar la rutina. `orden` (0=lunes … 6=domingo) sirve
+// para detectar días consecutivos al validar el descanso. La semana se trata como
+// CÍCLICA: domingo (6) y lunes (0) también cuentan como consecutivos.
+export const DIAS_SEMANA = [
+  { id: 'lunes', label: 'Lunes', corto: 'Lun', orden: 0 },
+  { id: 'martes', label: 'Martes', corto: 'Mar', orden: 1 },
+  { id: 'miercoles', label: 'Miércoles', corto: 'Mié', orden: 2 },
+  { id: 'jueves', label: 'Jueves', corto: 'Jue', orden: 3 },
+  { id: 'viernes', label: 'Viernes', corto: 'Vie', orden: 4 },
+  { id: 'sabado', label: 'Sábado', corto: 'Sáb', orden: 5 },
+  { id: 'domingo', label: 'Domingo', corto: 'Dom', orden: 6 },
 ]
