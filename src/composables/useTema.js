@@ -10,7 +10,7 @@ const STORAGE_KEY = 'gv-tema'
 const tema = ref('dark')
 
 // Color de la barra del navegador móvil según el tema (debe coincidir con --bg).
-const THEME_COLOR = { dark: '#070b12', light: '#f4f6fb' }
+const THEME_COLOR = { dark: '#081225', light: '#f4f7fb' }
 
 function aplicar(valor) {
   const root = document.documentElement

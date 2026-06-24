@@ -266,9 +266,9 @@ async function entrarConGoogle() {
   -webkit-text-fill-color: transparent;
 }
 
-/* En modo día el degradado claro es invisible: usamos uno oscuro→azul. */
+/* En modo día el degradado claro es invisible: usamos uno oscuro→cyan. */
 :root[data-theme="light"] .brand__name {
-  background: linear-gradient(180deg, #0f1729, #2f6bff);
+  background: linear-gradient(180deg, #0f172a, #06b6d4);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
