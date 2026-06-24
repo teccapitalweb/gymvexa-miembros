@@ -39,6 +39,9 @@ function suscribir() {
 }
 
 onMounted(() => {
+  // Mismo fix que en Videos: garantiza el gymId aunque se entre directo aquí
+  // tras recargar (antes solo Inicio/Perfil lo resolvían). Idempotente.
+  socioStore.vincularSocio()
   if (gymId.value) suscribir()
   document.addEventListener('fullscreenchange', onFsChange)
 })

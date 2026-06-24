@@ -39,6 +39,12 @@ function suscribir() {
 }
 
 onMounted(() => {
+  // Asegura que el vínculo del socio (gymId) quede resuelto aunque se entre
+  // DIRECTO a esta pestaña tras recargar. Antes solo Inicio/Perfil llamaban a
+  // vincularSocio(), por eso al caer aquí en frío el gymId era null, la vista
+  // no se suscribía y el skeleton se quedaba pegado hasta visitar otra pestaña.
+  // vincularSocio() es idempotente: si ya está resuelto, no hace nada.
+  socioStore.vincularSocio()
   if (gymId.value) suscribir()
   document.addEventListener('fullscreenchange', onFsChange)
 })
