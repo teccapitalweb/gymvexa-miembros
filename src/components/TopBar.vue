@@ -1,12 +1,33 @@
 <script setup>
 // Header superior — estilo BioNova.
-// Logo + campanita de notificaciones + botón día/noche (un solo lugar).
-// La campanita es visual por ahora; luego mostrará felicitaciones de cumpleaños.
-import { ref } from 'vue'
+// Logo + campanita de notificaciones + botón día/noche.
+// La campanita detecta el cumpleaños del socio (campo fechaNacimiento, que el
+// panel del dueño guarda como Timestamp) y muestra una felicitación ese día.
+import { ref, computed } from 'vue'
 import { useTema } from '../composables/useTema'
+import { useSocioStore } from '../stores/socio'
 
 const { tema, toggle } = useTema()
+const socio = useSocioStore()
 const notifAbierta = ref(false)
+
+// Mismo manejo del Timestamp que el panel del dueño (acepta Timestamp o Date).
+function tsToDate(v) {
+  if (!v) return null
+  if (typeof v.toDate === 'function') return v.toDate()
+  if (v instanceof Date) return v
+  return null
+}
+
+// ¿Hoy es el cumpleaños del socio? (compara día y mes, ignora el año)
+const esCumple = computed(() => {
+  const d = tsToDate(socio.datos?.fechaNacimiento)
+  if (!d) return false
+  const hoy = new Date()
+  return d.getMonth() === hoy.getMonth() && d.getDate() === hoy.getDate()
+})
+
+const primerNombre = computed(() => (socio.nombreSocio || '').trim().split(/\s+/)[0] || '')
 </script>
 
 <template>
@@ -34,12 +55,35 @@ const notifAbierta = ref(false)
               <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
+            <span v-if="esCumple" class="tbtn__dot" aria-hidden="true"></span>
           </button>
 
           <transition name="pop">
             <div v-if="notifAbierta" class="notif-pop" role="dialog" aria-label="Notificaciones">
               <p class="notif-pop__title">Notificaciones</p>
-              <div class="notif-pop__empty">
+
+              <!-- Cumpleaños -->
+              <div v-if="esCumple" class="bday">
+                <span class="bday__confeti bday__confeti--1" aria-hidden="true"></span>
+                <span class="bday__confeti bday__confeti--2" aria-hidden="true"></span>
+                <span class="bday__confeti bday__confeti--3" aria-hidden="true"></span>
+                <span class="bday__confeti bday__confeti--4" aria-hidden="true"></span>
+                <span class="bday__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 21h16" />
+                    <path d="M5 21v-7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7" />
+                    <path d="M5 15c1.4 0 1.4 1 2.8 1s1.4-1 2.8-1 1.4 1 2.8 1 1.4-1 2.8-1 1.4 1 2.8 1" />
+                    <path d="M8 12V9M12 12V8.5M16 12V9" />
+                    <path d="M8 6.6h.01M12 5.6h.01M16 6.6h.01" />
+                  </svg>
+                </span>
+                <p class="bday__title">¡Feliz cumpleaños<template v-if="primerNombre">, {{ primerNombre }}</template>!</p>
+                <p class="bday__text">Todo el equipo de tu gimnasio te desea un día increíble.</p>
+              </div>
+
+              <!-- Sin novedades -->
+              <div v-else class="notif-pop__empty">
                 <span class="notif-pop__icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
                        stroke-linecap="round" stroke-linejoin="round">
@@ -144,6 +188,16 @@ const notifAbierta = ref(false)
 .tbtn:active { transform: scale(0.94); }
 .tbtn--on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .tbtn svg { width: 19px; height: 19px; }
+.tbtn__dot {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid var(--surface);
+}
 
 /* Popover de notificaciones */
 .notif-overlay {
@@ -156,7 +210,7 @@ const notifAbierta = ref(false)
   top: calc(100% + 10px);
   right: 0;
   z-index: 60;
-  width: 256px;
+  width: 264px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -194,6 +248,54 @@ const notifAbierta = ref(false)
   color: var(--text-dim);
   margin: 0;
 }
+
+/* Cumpleaños */
+.bday {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 12px 6px 6px;
+}
+.bday__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--grad-firma);
+  box-shadow: 0 8px 20px var(--glow);
+}
+.bday__icon svg { width: 28px; height: 28px; }
+.bday__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.25;
+}
+.bday__text {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 0;
+}
+.bday__confeti {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  opacity: 0.9;
+}
+.bday__confeti--1 { top: 6px; left: 18px; background: var(--accent); transform: rotate(20deg); }
+.bday__confeti--2 { top: 14px; right: 22px; background: var(--success); transform: rotate(-15deg); }
+.bday__confeti--3 { top: 30px; left: 30px; width: 5px; height: 5px; border-radius: 50%; background: var(--warn); }
+.bday__confeti--4 { top: 24px; right: 34px; width: 5px; height: 5px; border-radius: 50%; background: var(--cyan-bright); }
 
 /* Animación del popover */
 .pop-enter-active, .pop-leave-active { transition: opacity 0.18s var(--ease), transform 0.18s var(--ease); }
