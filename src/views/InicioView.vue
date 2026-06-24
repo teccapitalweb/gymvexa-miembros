@@ -6,7 +6,6 @@ import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
 import { centavosAPesos } from '../composables/useDinero'
 import { interpretarMembresia } from '../composables/useMembresia'
-import ThemeToggle from '../components/ThemeToggle.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -92,7 +91,6 @@ async function reintentarVinculo() {
 
 <template>
   <main class="screen screen--with-nav inicio">
-    <ThemeToggle />
 
     <!-- Cargando vinculación -->
     <div v-if="socio.cargando && !socio.resuelto" class="estado-centro">

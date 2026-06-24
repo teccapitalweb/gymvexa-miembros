@@ -1,11 +1,9 @@
 <script setup>
-import ThemeToggle from '../components/ThemeToggle.vue'
 import Proximamente from '../components/Proximamente.vue'
 </script>
 
 <template>
   <main class="screen screen--with-nav">
-    <ThemeToggle />
     <header class="vista-head">
       <h1 class="vista-title">Videos</h1>
       <p class="vista-sub">Rutinas y técnica en video, directo de tu gym.</p>

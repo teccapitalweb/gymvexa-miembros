@@ -4,6 +4,7 @@
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
 import BottomNav from './components/BottomNav.vue'
+import TopBar from './components/TopBar.vue'
 import MenuDrawer from './components/MenuDrawer.vue'
 import InstallPrompt from './components/InstallPrompt.vue'
 
@@ -12,6 +13,7 @@ const mostrarNav = computed(() => !route.meta.publica && !route.meta.ocultarNav)
 </script>
 
 <template>
+  <TopBar v-if="mostrarNav" />
   <router-view v-slot="{ Component, route }">
     <transition name="page" mode="out-in">
       <component :is="Component" :key="route.name" />

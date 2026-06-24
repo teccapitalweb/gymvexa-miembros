@@ -37,6 +37,11 @@
   --accent-glow: rgba(6, 182, 212, 0.22);
   --cyan-glow: rgba(94, 234, 212, 0.24);
 
+  /* ---- Aurora + cuadrícula de fondo (firma BioNova) ---- */
+  --aurora-1: rgba(6, 182, 212, 0.30);
+  --aurora-2: rgba(34, 197, 94, 0.16);
+  --grid-line: rgba(255, 255, 255, 0.045);
+
   /* ---- Texto ---- */
   --text: #f2f5fc;          /* principal */
   --text-dim: #9fb0cc;      /* secundario */
@@ -116,17 +121,51 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* Fondo con glows radiales MUY sutiles (acento medido, no recargado). */
-  background-image:
-    radial-gradient(1100px 620px at 50% -14%, rgba(76, 141, 255, 0.1), transparent 60%),
-    radial-gradient(820px 520px at 110% 6%, rgba(52, 225, 255, 0.05), transparent 55%);
-  background-attachment: fixed;
   overflow-x: hidden;
+  position: relative;
+}
+
+/* Aurora difuminada (firma BioNova): orbes de color que se mueven muy lento. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 24% 26%, var(--aurora-1), transparent 52%),
+    radial-gradient(circle at 78% 74%, var(--aurora-2), transparent 52%);
+  filter: blur(60px);
+  pointer-events: none;
+  animation: auroraBg 26s ease-in-out infinite alternate;
+}
+/* Cuadrícula sutil que se desvanece hacia los bordes (firma BioNova). */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(ellipse 82% 68% at 50% 36%, #000 0%, transparent 72%);
+  mask-image: radial-gradient(ellipse 82% 68% at 50% 36%, #000 0%, transparent 72%);
+  pointer-events: none;
+}
+@keyframes auroraBg {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2%, -2%) scale(1.06); }
+  100% { transform: translate(-1.5%, 1.5%) scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
 }
 
 #app {
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 1;
 }
 
 button {
@@ -174,6 +213,7 @@ svg {
 
 /* Cuando hay barra inferior, reservamos su espacio (incl. el FAB elevado). */
 .screen--with-nav {
+  padding-top: var(--sp-4);
   padding-bottom: calc(var(--safe-bottom) + var(--nav-h) + 28px);
 }
 
@@ -356,7 +396,7 @@ svg {
   gap: 10px;
   border-radius: var(--r-md);
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.01em;
   transition: transform 0.12s var(--ease), box-shadow 0.2s var(--ease),
     background 0.2s var(--ease), border-color 0.2s var(--ease), filter 0.2s var(--ease);
@@ -378,11 +418,11 @@ svg {
 .btn--primary {
   background: var(--grad-firma);
   color: #ffffff;
-  box-shadow: 0 8px 22px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  box-shadow: 0 14px 30px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 .btn--primary:hover:not(:disabled) {
   filter: brightness(1.05);
-  box-shadow: 0 10px 26px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  box-shadow: 0 16px 36px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 /* Brillo que cruza el botón al tocar (sutil). */
 .btn--primary::after {
@@ -426,7 +466,7 @@ svg {
   padding: 6px 12px;
   border-radius: var(--r-pill);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.01em;
   border: 1px solid var(--line);
   background: var(--surface-2);
@@ -441,7 +481,7 @@ svg {
   box-shadow: 0 0 8px currentColor;
 }
 
-.chip--verde { color: var(--success); border-color: rgba(43, 224, 166, 0.35); background: var(--success-soft); }
+.chip--verde { color: var(--success); border-color: rgba(34, 197, 94, 0.38); background: var(--success-soft); }
 .chip--ambar { color: var(--warn); border-color: rgba(255, 194, 75, 0.35); background: var(--warn-soft); }
 .chip--rojo  { color: var(--danger); border-color: rgba(255, 92, 114, 0.35); background: var(--danger-soft); }
 .chip--gris  { color: var(--text-dim); }
@@ -566,6 +606,11 @@ svg {
   --glow: rgba(6, 182, 212, 0.20);
   --accent-glow: rgba(6, 182, 212, 0.16);
   --cyan-glow: rgba(34, 211, 238, 0.18);
+
+  /* ---- Aurora + cuadrícula de fondo (firma BioNova, día) ---- */
+  --aurora-1: rgba(6, 182, 212, 0.20);
+  --aurora-2: rgba(34, 197, 94, 0.13);
+  --grid-line: rgba(15, 23, 42, 0.045);
 
   /* ---- Texto BioNova ---- */
   --text: #0f172a;
