@@ -21,6 +21,9 @@ const ENDPOINT_VINCULAR_CODIGO = `${BACKEND_URL}/api/socios/vincular`
 // Check-in del socio: el backend (Admin SDK) registra la asistencia de forma
 // segura (valida membresía/anti-duplicado) SIN que el cliente toque Firestore.
 const ENDPOINT_CHECKIN = `${BACKEND_URL}/api/socios/checkin`
+// Cumpleaños del día en el gym: el backend (Admin SDK) detecta quién cumple hoy
+// y devuelve solo nombres (la app no puede leer fichas de otros socios).
+const ENDPOINT_CUMPLEANOS = `${BACKEND_URL}/api/socios/cumpleanos-hoy`
 
 // Construye un Error con status + mensaje legible (para que la UI ramifique).
 function errorBackend(mensaje, { status = null, data = null, red = false } = {}) {
@@ -355,4 +358,58 @@ export async function registrarCheckin({ metodoCheckin = 'qr_app', idempotencyKe
     status: res.status,
     data,
   })
+}
+
+// --------------------------------------------------------------------------
+// Cumpleaños del día en el gym (comunidad).
+// --------------------------------------------------------------------------
+
+/**
+ * Consulta quién cumple años HOY en el gimnasio del socio autenticado.
+ * GET /api/socios/cumpleanos-hoy con Bearer <idToken>. El backend (Admin SDK)
+ * los calcula y devuelve SOLO el nombre + un flag `esYo` (las reglas no dejan
+ * que la app lea las fichas de otros socios, así que esto pasa por el servidor).
+ *
+ * Degrada en silencio: si no hay sesión o el backend falla, devuelve [] para no
+ * romper la campanita (el cumpleañero sigue viendo su felicitación propia, que
+ * la app calcula localmente sin depender de este endpoint).
+ *
+ * @returns {Promise<Array<{ nombre: string, esYo: boolean }>>}
+ */
+export async function obtenerCumpleanosHoy() {
+  const user = auth.currentUser
+  if (!user) return []
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    return []
+  }
+
+  let res
+  try {
+    res = await fetch(ENDPOINT_CUMPLEANOS, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${idToken}` },
+    })
+  } catch {
+    return [] // sin conexión: la campanita sigue con la felicitación local
+  }
+
+  if (!res.ok) return []
+
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+
+  if (!data?.ok || !Array.isArray(data.cumpleaneros)) return []
+
+  // Solo entradas con nombre real; normalizamos esYo a booleano.
+  return data.cumpleaneros
+    .filter((c) => c && String(c.nombre || '').trim())
+    .map((c) => ({ nombre: String(c.nombre).trim(), esYo: c.esYo === true }))
 }

@@ -1,15 +1,25 @@
 <script setup>
 // Header superior — estilo BioNova.
 // Logo + campanita de notificaciones + botón día/noche.
-// La campanita detecta el cumpleaños del socio (campo fechaNacimiento, que el
-// panel del dueño guarda como Timestamp) y muestra una felicitación ese día.
-import { ref, computed } from 'vue'
+//
+// La campanita maneja DOS cosas de cumpleaños:
+//  1) El cumpleaños del PROPIO socio (campo fechaNacimiento, que el panel guarda
+//     como Timestamp). Se calcula LOCAL para que el cumpleañero vea su
+//     felicitación al instante, aunque el backend tarde o falle.
+//  2) Los cumpleaños de los DEMÁS socios del gym (comunidad). Como las reglas no
+//     dejan que la app lea fichas ajenas, esto lo calcula el backend (Admin SDK)
+//     y la app solo recibe nombres.
+import { ref, computed, onMounted, watch } from 'vue'
 import { useTema } from '../composables/useTema'
 import { useSocioStore } from '../stores/socio'
+import { obtenerCumpleanosHoy } from '../services/backend'
 
 const { tema, toggle } = useTema()
 const socio = useSocioStore()
 const notifAbierta = ref(false)
+
+// Cumpleañeros de HOY en el gym (lista de { nombre, esYo }). Lo llena el backend.
+const cumpleHoy = ref([])
 
 // Mismo manejo del Timestamp que el panel del dueño (acepta Timestamp o Date).
 function tsToDate(v) {
@@ -19,7 +29,7 @@ function tsToDate(v) {
   return null
 }
 
-// ¿Hoy es el cumpleaños del socio? (compara día y mes, ignora el año)
+// ¿Hoy es el cumpleaños del PROPIO socio? (día y mes, ignora el año).
 const esCumple = computed(() => {
   const d = tsToDate(socio.datos?.fechaNacimiento)
   if (!d) return false
@@ -27,7 +37,44 @@ const esCumple = computed(() => {
   return d.getMonth() === hoy.getMonth() && d.getDate() === hoy.getDate()
 })
 
-const primerNombre = computed(() => (socio.nombreSocio || '').trim().split(/\s+/)[0] || '')
+// Primer nombre a partir de un nombre completo ("Ana López" -> "Ana").
+function primerNombreDe(nombre) {
+  return String(nombre || '').trim().split(/\s+/)[0] || ''
+}
+const primerNombre = computed(() => primerNombreDe(socio.nombreSocio))
+
+// Une nombres en texto natural: "Ana", "Ana y Beto", "Ana, Beto y Caro".
+function unirNombres(nombres) {
+  const n = nombres.map(primerNombreDe).filter(Boolean)
+  if (n.length === 0) return ''
+  if (n.length === 1) return n[0]
+  if (n.length === 2) return `${n[0]} y ${n[1]}`
+  return `${n.slice(0, -1).join(', ')} y ${n[n.length - 1]}`
+}
+
+// OTROS cumpleañeros (todos menos el propio socio).
+const otrosNombres = computed(() =>
+  cumpleHoy.value.filter((c) => !c.esYo).map((c) => c.nombre),
+)
+const hayOtros = computed(() => otrosNombres.value.length > 0)
+const variosOtros = computed(() => otrosNombres.value.length > 1)
+const nombresOtros = computed(() => unirNombres(otrosNombres.value))
+
+// Puntito de aviso: si yo cumplo o cumple alguien más.
+const hayNovedad = computed(() => esCumple.value || hayOtros.value)
+
+// Carga los cumpleañeros del día desde el backend (cuando hay socio vinculado).
+async function cargarCumpleanos() {
+  if (!socio.socioId) {
+    cumpleHoy.value = []
+    return
+  }
+  cumpleHoy.value = await obtenerCumpleanosHoy()
+}
+
+onMounted(cargarCumpleanos)
+// Si el socio se carga/cambia después de montar, recargamos.
+watch(() => socio.socioId, cargarCumpleanos)
 </script>
 
 <template>
@@ -55,14 +102,14 @@ const primerNombre = computed(() => (socio.nombreSocio || '').trim().split(/\s+/
               <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
-            <span v-if="esCumple" class="tbtn__dot" aria-hidden="true"></span>
+            <span v-if="hayNovedad" class="tbtn__dot" aria-hidden="true"></span>
           </button>
 
           <transition name="pop">
             <div v-if="notifAbierta" class="notif-pop" role="dialog" aria-label="Notificaciones">
               <p class="notif-pop__title">Notificaciones</p>
 
-              <!-- Cumpleaños -->
+              <!-- 1) MI cumpleaños (con o sin otros) -->
               <div v-if="esCumple" class="bday">
                 <span class="bday__confeti bday__confeti--1" aria-hidden="true"></span>
                 <span class="bday__confeti bday__confeti--2" aria-hidden="true"></span>
@@ -80,9 +127,40 @@ const primerNombre = computed(() => (socio.nombreSocio || '').trim().split(/\s+/
                 </span>
                 <p class="bday__title">¡Feliz cumpleaños<template v-if="primerNombre">, {{ primerNombre }}</template>!</p>
                 <p class="bday__text">Todo el equipo de tu gimnasio te desea un día increíble.</p>
+                <p v-if="hayOtros" class="bday__extra">
+                  Hoy también cumple<template v-if="variosOtros">n</template> {{ nombresOtros }}.
+                  <template v-if="variosOtros">¡Felicítalos!</template>
+                  <template v-else>¡Mándale tus felicitaciones!</template>
+                </p>
               </div>
 
-              <!-- Sin novedades -->
+              <!-- 2) No es mi cumpleaños, pero cumple alguien más -->
+              <div v-else-if="hayOtros" class="bday">
+                <span class="bday__confeti bday__confeti--1" aria-hidden="true"></span>
+                <span class="bday__confeti bday__confeti--2" aria-hidden="true"></span>
+                <span class="bday__confeti bday__confeti--3" aria-hidden="true"></span>
+                <span class="bday__confeti bday__confeti--4" aria-hidden="true"></span>
+                <span class="bday__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 21h16" />
+                    <path d="M5 21v-7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7" />
+                    <path d="M5 15c1.4 0 1.4 1 2.8 1s1.4-1 2.8-1 1.4 1 2.8 1 1.4-1 2.8-1 1.4 1 2.8 1" />
+                    <path d="M8 12V9M12 12V8.5M16 12V9" />
+                    <path d="M8 6.6h.01M12 5.6h.01M16 6.6h.01" />
+                  </svg>
+                </span>
+                <p class="bday__title">
+                  <template v-if="variosOtros">Hoy cumplen años: {{ nombresOtros }}</template>
+                  <template v-else>Hoy cumple años {{ nombresOtros }}</template>
+                </p>
+                <p class="bday__text">
+                  <template v-if="variosOtros">¡Felicítalos!</template>
+                  <template v-else>¡Hazle el día con una felicitación!</template>
+                </p>
+              </div>
+
+              <!-- 3) Sin novedades -->
               <div v-else class="notif-pop__empty">
                 <span class="notif-pop__icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -284,6 +362,15 @@ const primerNombre = computed(() => (socio.nombreSocio || '').trim().split(/\s+/
   line-height: 1.5;
   color: var(--text-dim);
   margin: 0;
+}
+.bday__extra {
+  margin: 4px 0 0;
+  padding-top: 10px;
+  width: 100%;
+  border-top: 1px solid var(--line);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-dim);
 }
 .bday__confeti {
   position: absolute;
