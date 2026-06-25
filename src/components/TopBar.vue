@@ -23,16 +23,23 @@ import { db } from '../firebase'
 import { useRoute } from 'vue-router'
 import { useTema } from '../composables/useTema'
 import { useSocioStore } from '../stores/socio'
+import { useDrawer } from '../composables/useDrawer'
 import { obtenerCumpleanosHoy } from '../services/backend'
 
 const { tema, toggle } = useTema()
 const socio = useSocioStore()
 const route = useRoute()
+const { abierto: menuAbierto } = useDrawer()
 const notifAbierta = ref(false)
 
 // Cerrar el popover de notificaciones al cambiar de pestaña/ruta.
 // (Antes solo se cerraba al tocar fuera; al navegar quedaba abierto.)
 watch(() => route.fullPath, () => { notifAbierta.value = false })
+
+// Cerrar el popover también al abrir el menú lateral (botón "Menú").
+// El menú NO cambia de ruta (solo abre el drawer), por eso el watch de arriba
+// no lo cubría y el cuadro de notis quedaba abierto encima.
+watch(menuAbierto, (abierto) => { if (abierto) notifAbierta.value = false })
 
 // Cumpleañeros de HOY en el gym (lista de { nombre, esYo }). Lo llena el backend.
 const cumpleHoy = ref([])
