@@ -588,6 +588,22 @@ export async function obtenerProgreso(opciones = {}) {
       ultimaVisita: data?.ultimaVisita ?? null,
       // La meta efectiva la decide el backend; si no vino, refleja la enviada o 3.
       meta: n(data?.meta) || meta || 3,
+      // --- Fase 2: heatmap + logros (se pasan tal cual, con defaults seguros) ---
+      // heatmap: { desde, hasta, dias: { "YYYY-MM-DD": nVisitas } }
+      heatmap:
+        data?.heatmap && typeof data.heatmap === 'object'
+          ? {
+              desde: data.heatmap.desde ?? null,
+              hasta: data.heatmap.hasta ?? null,
+              dias:
+                data.heatmap.dias && typeof data.heatmap.dias === 'object'
+                  ? data.heatmap.dias
+                  : {},
+            }
+          : null,
+      // logros: [{ id, nombre, descripcion, categoria, desbloqueado, progreso:{actual,objetivo} }]
+      logros: Array.isArray(data?.logros) ? data.logros : [],
+      logrosDesbloqueados: n(data?.logrosDesbloqueados),
     }
   }
 

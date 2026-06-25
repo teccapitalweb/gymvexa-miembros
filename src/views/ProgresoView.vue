@@ -54,6 +54,141 @@ const promedio = computed(() => {
   // 1 decimal, sin ".0" innecesario (3 en vez de 3.0; 3.2 se queda).
   return Number.isInteger(p) ? String(p) : p.toFixed(1)
 })
+
+// ===================== FASE 2: HEATMAP =====================
+// heatmap: { desde, hasta, dias: { "YYYY-MM-DD": nVisitas } }
+const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+const DIAS_SEM = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+
+function parseYMD(s) {
+  const [y, m, d] = String(s).split('-').map(Number)
+  return new Date(y, (m || 1) - 1, d || 1)
+}
+function toYMD(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+const heatmap = computed(() => data.value?.heatmap || null)
+const hayHeatmap = computed(() => {
+  const hm = heatmap.value
+  return !!hm && hm.dias && Object.keys(hm.dias).length >= 0 && (hm.desde || Object.keys(hm.dias).length)
+})
+
+// Cuadrícula tipo GitHub: columnas = semanas, filas = días (Dom..Sáb).
+const semanasHeatmap = computed(() => {
+  const hm = heatmap.value
+  if (!hm || !hm.dias) return []
+  const dias = hm.dias
+  const claves = Object.keys(dias)
+  let desdeStr = hm.desde
+  let hastaStr = hm.hasta
+  if (!desdeStr || !hastaStr) {
+    if (!claves.length) return []
+    const ord = [...claves].sort()
+    desdeStr = desdeStr || ord[0]
+    hastaStr = hastaStr || ord[ord.length - 1]
+  }
+  const desde = parseYMD(desdeStr)
+  const hasta = parseYMD(hastaStr)
+  if (hasta < desde) return []
+
+  // Alinear inicio al domingo de su semana y fin al sábado de la suya.
+  const inicio = new Date(desde)
+  inicio.setDate(inicio.getDate() - inicio.getDay())
+  const fin = new Date(hasta)
+  fin.setDate(fin.getDate() + (6 - fin.getDay()))
+
+  const semanas = []
+  const cursor = new Date(inicio)
+  let guard = 0
+  while (cursor <= fin && guard < 800) {
+    const semana = []
+    for (let i = 0; i < 7; i++) {
+      const ymd = toYMD(cursor)
+      const enRango = cursor >= desde && cursor <= hasta
+      const count = enRango ? Number(dias[ymd] || 0) : 0
+      const nivel = !enRango ? -1 : count <= 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : 3
+      semana.push({ ymd, fecha: new Date(cursor), count, enRango, nivel })
+      cursor.setDate(cursor.getDate() + 1)
+      guard++
+    }
+    semanas.push(semana)
+  }
+  return semanas
+})
+
+// Etiqueta de mes por columna (solo cuando cambia el mes respecto a la anterior).
+const mesesHeatmap = computed(() => {
+  const out = []
+  let ultimo = -1
+  for (const semana of semanasHeatmap.value) {
+    const dia = semana.find((d) => d.enRango) || semana[0]
+    const mes = dia.fecha.getMonth()
+    out.push(mes !== ultimo ? MESES[mes] : '')
+    ultimo = mes
+  }
+  return out
+})
+
+// Día seleccionado (tap) para mostrar su detalle bajo el calendario.
+const diaSel = ref(null)
+function seleccionarDia(dia) {
+  if (!dia.enRango) return
+  diaSel.value = diaSel.value && diaSel.value.ymd === dia.ymd ? null : dia
+}
+const diaSelTexto = computed(() => {
+  const d = diaSel.value
+  if (!d) return ''
+  const f = d.fecha
+  const fecha = `${DIAS_SEM[f.getDay()]} ${f.getDate()} ${MESES[f.getMonth()]}`
+  return d.count > 0 ? `${fecha} · entrenaste` : `${fecha} · sin asistencia`
+})
+
+// ===================== FASE 2: LOGROS =====================
+const LABEL_CAT = { visitas: 'Visitas', racha: 'Racha', consistencia: 'Consistencia' }
+// Íconos SVG por categoría (sin emojis): medalla (visitas), trofeo (racha), estrella (consistencia).
+const ICON_CAT = {
+  visitas: ['M12 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10z', 'M9.5 12.5 8 21l4-2 4 2-1.5-8.5'],
+  racha: ['M7 4h10v3a5 5 0 0 1-10 0z', 'M7 5H4v1a3 3 0 0 0 3 3M17 5h3v1a3 3 0 0 1-3 3', 'M12 12v4M9 20h6M10 20l.4-4M14 20l-.4-4'],
+  consistencia: ['M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.6 9.6l5.8-.8z'],
+}
+function iconoCat(cat) {
+  return ICON_CAT[cat] || ICON_CAT.consistencia
+}
+
+const logros = computed(() => data.value?.logros || [])
+const logrosTotal = computed(() => logros.value.length)
+const logrosDesbloqueados = computed(() =>
+  data.value?.logrosDesbloqueados ?? logros.value.filter((l) => l.desbloqueado).length,
+)
+const hayLogros = computed(() => logrosTotal.value > 0)
+
+// Agrupa por categoría preservando el orden conocido (visitas, racha, consistencia) y
+// añade cualquier categoría extra al final, por si el backend agrega más.
+const logrosPorCategoria = computed(() => {
+  const grupos = []
+  const idx = {}
+  for (const l of logros.value) {
+    const cat = l.categoria || 'otros'
+    if (!(cat in idx)) {
+      idx[cat] = grupos.length
+      grupos.push({ id: cat, label: LABEL_CAT[cat] || 'Logros', items: [] })
+    }
+    grupos[idx[cat]].items.push(l)
+  }
+  return grupos
+})
+
+// % de progreso de un logro bloqueado (para la mini-barra).
+function pctLogro(l) {
+  const a = Number(l?.progreso?.actual ?? 0)
+  const o = Number(l?.progreso?.objetivo ?? 0)
+  if (!o || o <= 0) return 0
+  return Math.min(100, Math.round((a / o) * 100))
+}
 </script>
 
 <template>
@@ -73,6 +208,8 @@ const promedio = computed(() => {
         <section class="card sk sk--stat"></section>
         <section class="card sk sk--stat"></section>
       </div>
+      <section class="card sk sk--block"></section>
+      <section class="card sk sk--block"></section>
     </template>
 
     <!-- ===== Estado: ERROR ===== -->
@@ -180,7 +317,99 @@ const promedio = computed(() => {
         </section>
       </div>
 
-      <!-- Fase 2: aquí irán el calendario/heatmap de asistencias y los logros/hitos. -->
+      <!-- ===== FASE 2 · HEATMAP (calendario de asistencias) ===== -->
+      <section v-if="hayHeatmap && semanasHeatmap.length" class="card bloque heatmap">
+        <div class="bloque__head">
+          <h2 class="bloque__title">Tu calendario</h2>
+          <span class="bloque__hint">Cada día que entrenaste</span>
+        </div>
+
+        <div class="hm__scroll">
+          <div class="hm__grid-wrap">
+            <!-- etiquetas de mes -->
+            <div class="hm__meses">
+              <span v-for="(m, i) in mesesHeatmap" :key="'m' + i" class="hm__mes">{{ m }}</span>
+            </div>
+            <div class="hm__body">
+              <!-- etiquetas de día (Lun/Mié/Vie) -->
+              <div class="hm__dows" aria-hidden="true">
+                <span></span><span>Lun</span><span></span><span>Mié</span>
+                <span></span><span>Vie</span><span></span>
+              </div>
+              <!-- columnas = semanas -->
+              <div class="hm__cols">
+                <div v-for="(semana, si) in semanasHeatmap" :key="'w' + si" class="hm__col">
+                  <button
+                    v-for="dia in semana"
+                    :key="dia.ymd"
+                    type="button"
+                    class="hm__cell"
+                    :class="[
+                      `hm__cell--n${dia.nivel < 0 ? 'x' : dia.nivel}`,
+                      { 'hm__cell--sel': diaSel && diaSel.ymd === dia.ymd },
+                    ]"
+                    :disabled="!dia.enRango"
+                    :aria-label="dia.enRango ? `${dia.ymd}: ${dia.count} ${dia.count === 1 ? 'visita' : 'visitas'}` : ''"
+                    @click="seleccionarDia(dia)"
+                  ></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- detalle del día tocado + leyenda -->
+        <p v-if="diaSelTexto" class="hm__sel">{{ diaSelTexto }}</p>
+        <div class="hm__leyenda">
+          <span class="hm__leyenda-txt">Menos</span>
+          <span class="hm__cell hm__cell--n0"></span>
+          <span class="hm__cell hm__cell--n1"></span>
+          <span class="hm__cell hm__cell--n2"></span>
+          <span class="hm__cell hm__cell--n3"></span>
+          <span class="hm__leyenda-txt">Más</span>
+        </div>
+      </section>
+
+      <!-- ===== FASE 2 · LOGROS (medallas) ===== -->
+      <section v-if="hayLogros" class="card bloque logros">
+        <div class="bloque__head">
+          <h2 class="bloque__title">Logros</h2>
+          <span class="logros__contador">{{ logrosDesbloqueados }} de {{ logrosTotal }}</span>
+        </div>
+
+        <div v-for="grupo in logrosPorCategoria" :key="grupo.id" class="logros__grupo">
+          <span class="kicker logros__cat">{{ grupo.label }}</span>
+          <div class="logros__grid">
+            <article
+              v-for="l in grupo.items"
+              :key="l.id"
+              class="medalla"
+              :class="{ 'medalla--on': l.desbloqueado }"
+            >
+              <span class="medalla__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <path v-for="(d, di) in iconoCat(l.categoria)" :key="di" :d="d" />
+                </svg>
+                <span v-if="l.desbloqueado" class="medalla__check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12.5l4 4 10-10" />
+                  </svg>
+                </span>
+              </span>
+              <h3 class="medalla__nombre">{{ l.nombre }}</h3>
+              <p class="medalla__desc">{{ l.descripcion }}</p>
+              <div v-if="!l.desbloqueado && l.progreso && l.progreso.objetivo" class="medalla__prog">
+                <div class="medalla__barra">
+                  <span class="medalla__barra-fill" :style="{ width: pctLogro(l) + '%' }"></span>
+                </div>
+                <span class="medalla__prog-txt">{{ l.progreso.actual }}/{{ l.progreso.objetivo }}</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
     </template>
   </main>
 </template>
@@ -402,13 +631,226 @@ const promedio = computed(() => {
 .sk--hero { height: 268px; }
 .sk--meta { height: 156px; }
 .sk--stat { height: 96px; }
+.sk--block { height: 200px; }
 @keyframes skShimmer {
   100% { transform: translateX(100%); }
+}
+
+/* ===================== BLOQUE (encabezado de sección) ===================== */
+.bloque__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: var(--sp-4);
+}
+.bloque__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 0;
+}
+.bloque__hint { font-size: 0.76rem; color: var(--text-faint); }
+
+/* ===================== HEATMAP ===================== */
+.hm__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  /* scrollbar discreta */
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+.hm__scroll::-webkit-scrollbar { height: 6px; }
+.hm__scroll::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: var(--r-pill); }
+.hm__grid-wrap { display: inline-block; min-width: max-content; }
+
+.hm__meses {
+  display: flex;
+  gap: 3px;
+  padding-left: 32px;
+  margin-bottom: 5px;
+}
+.hm__mes {
+  width: 12px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.hm__body { display: flex; gap: 6px; }
+.hm__dows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 0 26px;
+  width: 26px;
+}
+.hm__dows span {
+  height: 12px;
+  line-height: 12px;
+  text-align: right;
+  font-size: 0.6rem;
+  color: var(--text-faint);
+}
+.hm__cols { display: flex; gap: 3px; }
+.hm__col { display: flex; flex-direction: column; gap: 3px; }
+
+.hm__cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 0;
+  padding: 0;
+  background: var(--surface-3);
+  cursor: pointer;
+  transition: transform 0.12s var(--ease), box-shadow 0.2s var(--ease);
+}
+.hm__cell:disabled { cursor: default; }
+.hm__cell:not(:disabled):active { transform: scale(0.85); }
+/* niveles de intensidad (Quiet Neon cyan) */
+.hm__cell--nx { background: transparent; }
+.hm__cell--n0 { background: var(--surface-3); }
+.hm__cell--n1 { background: rgba(6, 182, 212, 0.4); }
+.hm__cell--n2 { background: rgba(6, 182, 212, 0.7); }
+.hm__cell--n3 {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--glow);
+}
+.hm__cell--sel {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+}
+
+.hm__sel {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.hm__leyenda {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  justify-content: flex-end;
+}
+.hm__leyenda .hm__cell { cursor: default; }
+.hm__leyenda-txt { font-size: 0.7rem; color: var(--text-faint); margin: 0 2px; }
+
+/* ===================== LOGROS / MEDALLAS ===================== */
+.logros__contador {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  font-variant-numeric: tabular-nums;
+}
+.logros__grupo { margin-top: var(--sp-4); }
+.logros__grupo:first-of-type { margin-top: 0; }
+.logros__cat { display: block; margin-bottom: 10px; }
+.logros__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+
+.medalla {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  opacity: 0.72;
+  transition: opacity 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.medalla--on {
+  opacity: 1;
+  border-color: var(--accent);
+  background: linear-gradient(160deg, var(--accent-soft), transparent 70%), var(--surface-2);
+}
+.medalla__icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  color: var(--text-faint);
+  margin-bottom: 2px;
+}
+.medalla__icon svg { width: 22px; height: 22px; }
+.medalla--on .medalla__icon {
+  color: #fff;
+  background: var(--grad-firma);
+  box-shadow: 0 6px 16px var(--glow);
+}
+.medalla__check {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--surface);
+}
+.medalla__check svg { width: 10px; height: 10px; }
+.medalla__nombre {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 2px 0 0;
+  line-height: 1.2;
+}
+.medalla__desc {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.3;
+}
+.medalla__prog {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+.medalla__barra {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.medalla__barra-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transition: width 0.5s var(--ease);
+}
+.medalla__prog-txt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ===================== Responsive ===================== */
 @media (max-width: 360px) {
   .semana { flex-direction: column; text-align: center; }
   .hero__num { font-size: 3.4rem; }
+  .logros__grid { grid-template-columns: 1fr; }
 }
 </style>
