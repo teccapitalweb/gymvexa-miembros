@@ -312,7 +312,7 @@ function hace(creadoEn) {
                   </span>
                   <div class="nitem__body">
                     <p class="nitem__text">
-                      <strong>{{ primerNombreDe(n.deNombre) || 'Alguien' }}</strong>
+                      <strong>{{ n.esStaff ? (n.deNombre || 'Tu gimnasio') : (primerNombreDe(n.deNombre) || 'Alguien') }}</strong>
                       <template v-if="n.tipo === 'like'"> le dio me gusta a tu publicación</template>
                       <template v-else> comentó tu publicación</template>
                     </p>
