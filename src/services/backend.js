@@ -27,6 +27,10 @@ const ENDPOINT_CUMPLEANOS = `${BACKEND_URL}/api/socios/cumpleanos-hoy`
 // Foro: avisa al backend de un like/comentario para que CREE la notificación al
 // autor del post (las reglas no dejan que el cliente cree notificaciones).
 const ENDPOINT_FORO_NOTIFICAR = `${BACKEND_URL}/api/foro/notificar`
+// Progreso + rachas del socio: el backend (Admin SDK) lee las asistencias (que la
+// app NO puede leer directo) y devuelve el resumen ya calculado (racha semanal,
+// visitas, días entrenados, promedio…). El cliente solo lo pinta.
+const ENDPOINT_PROGRESO = `${BACKEND_URL}/api/socios/progreso`
 
 // Construye un Error con status + mensaje legible (para que la UI ramifique).
 function errorBackend(mensaje, { status = null, data = null, red = false } = {}) {
@@ -455,4 +459,140 @@ export async function notificarForo(postId, tipo) {
   } catch {
     // Silencioso a propósito: el aviso es secundario.
   }
+}
+
+// --------------------------------------------------------------------------
+// Progreso + rachas del socio.
+// --------------------------------------------------------------------------
+
+// Clave de la rutina activa del socio en localStorage (la misma que usa RutinasView).
+const STORAGE_RUTINA_ACTIVA = 'gv-rutina-activa'
+
+/**
+ * Lee la META semanal (nº de días programados) de la rutina activa del socio que
+ * vive en localStorage. Si hay una rutina activa con días asignados, devuelve esa
+ * cantidad para que la racha use la meta REAL del socio; si no, devuelve null y el
+ * backend aplica su meta por defecto. Nunca lanza (degrada a null).
+ *
+ * @returns {number|null} días/semana programados (>=1) o null si no hay rutina activa.
+ */
+export function metaSemanalDeRutinaActiva() {
+  try {
+    const raw = localStorage.getItem(STORAGE_RUTINA_ACTIVA)
+    if (!raw) return null
+    // Compat: la versión vieja guardaba solo el id como string plano (sin días).
+    if (raw[0] !== '{') return null
+    const obj = JSON.parse(raw)
+    if (!obj || !obj.rutinaId) return null
+    // Nº de días programados: claves de asignacion {diaId: sesion}; respaldo: dias[].
+    const porAsignacion =
+      obj.asignacion && typeof obj.asignacion === 'object'
+        ? Object.keys(obj.asignacion).length
+        : 0
+    const porDias = Array.isArray(obj.dias) ? obj.dias.length : 0
+    const n = porAsignacion || porDias
+    return n >= 1 ? n : null
+  } catch {
+    return null
+  }
+}
+
+// Mensaje de respaldo por status para el endpoint de progreso.
+function mensajePorProgreso(status) {
+  switch (status) {
+    case 401:
+      return 'Tu sesión expiró. Vuelve a iniciar sesión e inténtalo de nuevo.'
+    case 403:
+      return 'No pudimos verificar tu acceso. Acércate a recepción.'
+    case 404:
+      return 'No encontramos tu ficha de socio. Contacta a tu gimnasio.'
+    default:
+      return 'No pudimos cargar tu progreso. Inténtalo de nuevo.'
+  }
+}
+
+/**
+ * Obtiene el resumen de PROGRESO + RACHAS del socio autenticado.
+ * GET /api/socios/progreso con Bearer <idToken>. El backend toma gymId/socioId del
+ * CLAIM del token (no se envían), lee las asistencias con Admin SDK y calcula todo.
+ *
+ * Si el socio tiene una rutina activa con días programados, se manda ?meta=N para
+ * que la racha use SU meta real (días/semana de su plan). Si no, se omite y el
+ * backend usa su meta por defecto.
+ *
+ * @param {{ meta?: number }} [opciones] - meta semanal explícita (override). Si no
+ *        se pasa, se infiere de la rutina activa en localStorage.
+ * @returns {Promise<{ totalVisitas:number, visitasEsteMes:number,
+ *          visitasEstaSemana:number, diasEntrenados:number, rachaActual:number,
+ *          rachaMasLarga:number, promedioPorSemana:number, primeraVisita:string|null,
+ *          ultimaVisita:string|null, meta:number }>}
+ * @throws {Error} con `.status` (401/403/404/500 o null en red) y `.message` legible.
+ */
+export async function obtenerProgreso(opciones = {}) {
+  const user = auth.currentUser
+  if (!user) {
+    throw errorBackend('No hay una sesión activa. Vuelve a iniciar sesión.', {
+      status: 401,
+    })
+  }
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    throw errorBackend('No pudimos validar tu sesión. Inténtalo de nuevo.', {
+      status: 401,
+    })
+  }
+
+  // Meta: la explícita si vino; si no, la de la rutina activa del socio.
+  const meta =
+    typeof opciones.meta === 'number' && opciones.meta >= 1
+      ? Math.floor(opciones.meta)
+      : metaSemanalDeRutinaActiva()
+
+  let url = ENDPOINT_PROGRESO
+  if (meta) url += `?meta=${encodeURIComponent(meta)}`
+
+  let res
+  try {
+    res = await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${idToken}` },
+    })
+  } catch {
+    throw errorBackend(
+      'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+      { red: true },
+    )
+  }
+
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+
+  if (res.ok) {
+    const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+    return {
+      totalVisitas: n(data?.totalVisitas),
+      visitasEsteMes: n(data?.visitasEsteMes),
+      visitasEstaSemana: n(data?.visitasEstaSemana),
+      diasEntrenados: n(data?.diasEntrenados),
+      rachaActual: n(data?.rachaActual),
+      rachaMasLarga: n(data?.rachaMasLarga),
+      promedioPorSemana: n(data?.promedioPorSemana),
+      primeraVisita: data?.primeraVisita ?? null,
+      ultimaVisita: data?.ultimaVisita ?? null,
+      // La meta efectiva la decide el backend; si no vino, refleja la enviada o 3.
+      meta: n(data?.meta) || meta || 3,
+    }
+  }
+
+  throw errorBackend(data?.error || data?.mensaje || mensajePorProgreso(res.status), {
+    status: res.status,
+    data,
+  })
 }

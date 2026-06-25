@@ -92,6 +92,16 @@ async function cerrarSesion() {
           <span class="ditem__label">Rutinas</span>
           <span class="ditem__chev" aria-hidden="true">›</span>
         </button>
+        <button class="ditem" :class="{ 'ditem--active': esActivo('progreso') }" @click="ir('/progreso')">
+          <span class="ditem__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19V5M4 19h16" /><path d="M8 16l3.5-4 3 2.5L20 8" />
+            </svg>
+          </span>
+          <span class="ditem__label">Progreso</span>
+          <span class="ditem__chev" aria-hidden="true">›</span>
+        </button>
         <button class="ditem" :class="{ 'ditem--active': esActivo('videos') }" @click="ir('/videos')">
           <span class="ditem__icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"

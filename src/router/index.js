@@ -71,6 +71,12 @@ const routes = [
     meta: { requiereSocio: true },
   },
   {
+    path: '/progreso',
+    name: 'progreso',
+    component: () => import('../views/ProgresoView.vue'),
+    meta: { requiereSocio: true },
+  },
+  {
     path: '/foro',
     name: 'foro',
     component: () => import('../views/ForoView.vue'),
