@@ -26,6 +26,7 @@ import {
 import { db } from '../firebase'
 import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
+import { notificarForo } from '../services/backend'
 
 const auth = useAuthStore()
 const socioStore = useSocioStore()
@@ -115,6 +116,9 @@ async function alternarLike(p) {
       likes: increment(dio ? -1 : 1),
       likedBy: dio ? arrayRemove(miUid.value) : arrayUnion(miUid.value),
     })
+    // Solo avisamos cuando se DA like (no al quitarlo). El backend ignora el
+    // caso de darte like a ti mismo.
+    if (!dio) notificarForo(p.id, 'like')
   } catch (e) {
     console.error('[foro] like:', e)
   }
@@ -137,6 +141,9 @@ async function publicar() {
     await addDoc(collection(db, 'gyms', gymId.value, 'foro'), {
       uid: miUid.value,
       autorNombre: miNombre.value,
+      // Necesario para las notificaciones: el backend lee este campo del post
+      // para saber a qué socio avisarle cuando le dan like o lo comentan.
+      autorSocioId: socioStore.socioId || null,
       texto: t,
       likes: 0,
       likedBy: [],
@@ -235,6 +242,7 @@ async function enviarComentario(p) {
     await updateDoc(doc(db, 'gyms', gymId.value, 'foro', p.id), {
       comentariosCount: increment(1),
     })
+    notificarForo(p.id, 'comentario')
     textoComentario.value = ''
   } catch (e) {
     console.error('[foro] enviar comentario:', e)

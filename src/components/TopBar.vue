@@ -9,7 +9,17 @@
 //  2) Los cumpleaños de los DEMÁS socios del gym (comunidad). Como las reglas no
 //     dejan que la app lea fichas ajenas, esto lo calcula el backend (Admin SDK)
 //     y la app solo recibe nombres.
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  updateDoc,
+  deleteDoc,
+} from 'firebase/firestore'
+import { db } from '../firebase'
 import { useTema } from '../composables/useTema'
 import { useSocioStore } from '../stores/socio'
 import { obtenerCumpleanosHoy } from '../services/backend'
@@ -60,8 +70,10 @@ const hayOtros = computed(() => otrosNombres.value.length > 0)
 const variosOtros = computed(() => otrosNombres.value.length > 1)
 const nombresOtros = computed(() => unirNombres(otrosNombres.value))
 
-// Puntito de aviso: si yo cumplo o cumple alguien más.
-const hayNovedad = computed(() => esCumple.value || hayOtros.value)
+// Puntito de aviso: si yo cumplo, cumple alguien más, o hay avisos sin leer.
+const hayNovedad = computed(
+  () => esCumple.value || hayOtros.value || noLeidas.value > 0,
+)
 
 // Carga los cumpleañeros del día desde el backend (cuando hay socio vinculado).
 async function cargarCumpleanos() {
@@ -72,9 +84,110 @@ async function cargarCumpleanos() {
   cumpleHoy.value = await obtenerCumpleanosHoy()
 }
 
-onMounted(cargarCumpleanos)
+onMounted(() => {
+  cargarCumpleanos()
+  suscribirNotis()
+})
 // Si el socio se carga/cambia después de montar, recargamos.
-watch(() => socio.socioId, cargarCumpleanos)
+watch(() => socio.socioId, () => {
+  cargarCumpleanos()
+  suscribirNotis()
+})
+onUnmounted(desuscribirNotis)
+
+// ---------------------------------------------------------------------------
+// Avisos del FORO (like / comentario). Se leen DIRECTO de Firestore: las reglas
+// dejan que cada socio lea las SUYAS (por paraSocioId). Las CREA el backend;
+// aquí solo se listan, se marcan como leídas al abrir y se pueden quitar.
+// ---------------------------------------------------------------------------
+const notis = ref([])
+let unsubNotis = null
+
+function suscribirNotis() {
+  desuscribirNotis()
+  const gymId = socio.gymId
+  const socioId = socio.socioId
+  if (!gymId || !socioId) {
+    notis.value = []
+    return
+  }
+  // Solo filtro por igualdad (usa el índice automático; NO requiere índice
+  // compuesto). El orden por fecha y el corte se hacen en el cliente.
+  const q = query(
+    collection(db, 'gyms', gymId, 'notificaciones'),
+    where('paraSocioId', '==', socioId),
+  )
+  unsubNotis = onSnapshot(
+    q,
+    (snap) => {
+      const arr = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      arr.sort((a, b) => msDe(b.creadoEn) - msDe(a.creadoEn))
+      notis.value = arr.slice(0, 30)
+    },
+    (e) => {
+      console.error('[notis] onSnapshot:', e)
+    },
+  )
+}
+function desuscribirNotis() {
+  if (unsubNotis) {
+    unsubNotis()
+    unsubNotis = null
+  }
+}
+
+const noLeidas = computed(
+  () => notis.value.filter((n) => n.leida !== true).length,
+)
+
+// Al abrir la campana, marca como leídas (campo `leida`, el único que las reglas
+// dejan tocar al socio).
+async function marcarLeidas() {
+  const gymId = socio.gymId
+  if (!gymId) return
+  const pendientes = notis.value.filter((n) => n.leida !== true)
+  await Promise.all(
+    pendientes.map((n) =>
+      updateDoc(doc(db, 'gyms', gymId, 'notificaciones', n.id), {
+        leida: true,
+      }).catch(() => {}),
+    ),
+  )
+}
+watch(notifAbierta, (abierta) => {
+  if (abierta && noLeidas.value > 0) marcarLeidas()
+})
+
+async function quitarNoti(n) {
+  const gymId = socio.gymId
+  if (!gymId) return
+  try {
+    await deleteDoc(doc(db, 'gyms', gymId, 'notificaciones', n.id))
+  } catch (e) {
+    console.error('[notis] borrar:', e)
+  }
+}
+
+// Timestamp de Firestore -> ms (para ordenar y para el tiempo relativo).
+function msDe(creadoEn) {
+  if (creadoEn?.toMillis) return creadoEn.toMillis()
+  if (typeof creadoEn?.seconds === 'number') return creadoEn.seconds * 1000
+  return 0
+}
+
+// Tiempo relativo corto para los avisos.
+function hace(creadoEn) {
+  const ms = msDe(creadoEn)
+  if (!ms) return 'ahora'
+  const diff = Math.max(0, Date.now() - ms)
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'ahora'
+  if (min < 60) return `hace ${min} min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `hace ${h} h`
+  const d = Math.floor(h / 24)
+  return d === 1 ? 'ayer' : `hace ${d} d`
+}
 </script>
 
 <template>
@@ -160,8 +273,55 @@ watch(() => socio.socioId, cargarCumpleanos)
                 </p>
               </div>
 
-              <!-- 3) Sin novedades -->
-              <div v-else class="notif-pop__empty">
+              <!-- Avisos del foro (like / comentario) -->
+              <div
+                v-if="notis.length"
+                class="nlist"
+                :class="{ 'nlist--sep': esCumple || hayOtros }"
+              >
+                <div
+                  v-for="n in notis"
+                  :key="n.id"
+                  class="nitem"
+                  :class="{ 'nitem--unread': n.leida !== true }"
+                >
+                  <span
+                    class="nitem__icon"
+                    :class="n.tipo === 'like' ? 'nitem__icon--like' : 'nitem__icon--com'"
+                  >
+                    <svg v-if="n.tipo === 'like'" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 22l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-9 8.3 8.5 8.5 0 0 1-3.8-.9L3 20l1.1-3.2A8.4 8.4 0 0 1 3 11.5a8.38 8.38 0 0 1 9-8.3 8.38 8.38 0 0 1 9 8.3z" />
+                    </svg>
+                  </span>
+                  <div class="nitem__body">
+                    <p class="nitem__text">
+                      <strong>{{ primerNombreDe(n.deNombre) || 'Alguien' }}</strong>
+                      <template v-if="n.tipo === 'like'"> le dio me gusta a tu publicación</template>
+                      <template v-else> comentó tu publicación</template>
+                    </p>
+                    <p v-if="n.extracto" class="nitem__extracto">"{{ n.extracto }}"</p>
+                    <span class="nitem__fecha">{{ hace(n.creadoEn) }}</span>
+                  </div>
+                  <button
+                    class="nitem__del"
+                    type="button"
+                    aria-label="Quitar aviso"
+                    @click="quitarNoti(n)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Sin novedades -->
+              <div v-if="!esCumple && !hayOtros && !notis.length" class="notif-pop__empty">
                 <span class="notif-pop__icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
                        stroke-linecap="round" stroke-linejoin="round">
@@ -383,6 +543,84 @@ watch(() => socio.socioId, cargarCumpleanos)
 .bday__confeti--2 { top: 14px; right: 22px; background: var(--success); transform: rotate(-15deg); }
 .bday__confeti--3 { top: 30px; left: 30px; width: 5px; height: 5px; border-radius: 50%; background: var(--warn); }
 .bday__confeti--4 { top: 24px; right: 34px; width: 5px; height: 5px; border-radius: 50%; background: var(--cyan-bright); }
+
+/* Lista de avisos del foro */
+.nlist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 44vh;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.nlist--sep {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.nitem {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 9px 6px;
+  border-radius: 12px;
+  transition: background 0.18s var(--ease);
+}
+.nitem--unread { background: var(--accent-soft); }
+.nitem__icon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  margin-top: 1px;
+}
+.nitem__icon svg { width: 15px; height: 15px; }
+.nitem__icon--like { background: var(--danger-soft); color: var(--danger); }
+.nitem__icon--com { background: var(--accent-soft); color: var(--accent); }
+.nitem__body { flex: 1; min-width: 0; }
+.nitem__text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+.nitem__text strong { color: var(--text); font-weight: 700; }
+.nitem__extracto {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--text-faint);
+  font-style: italic;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nitem__fecha {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+}
+.nitem__del {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: color 0.18s, opacity 0.18s;
+}
+.nitem__del:hover { color: var(--danger); opacity: 1; }
+.nitem__del svg { width: 13px; height: 13px; }
 
 /* Animación del popover */
 .pop-enter-active, .pop-leave-active { transition: opacity 0.18s var(--ease), transform 0.18s var(--ease); }

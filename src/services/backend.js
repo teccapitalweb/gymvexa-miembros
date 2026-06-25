@@ -24,6 +24,9 @@ const ENDPOINT_CHECKIN = `${BACKEND_URL}/api/socios/checkin`
 // Cumpleaños del día en el gym: el backend (Admin SDK) detecta quién cumple hoy
 // y devuelve solo nombres (la app no puede leer fichas de otros socios).
 const ENDPOINT_CUMPLEANOS = `${BACKEND_URL}/api/socios/cumpleanos-hoy`
+// Foro: avisa al backend de un like/comentario para que CREE la notificación al
+// autor del post (las reglas no dejan que el cliente cree notificaciones).
+const ENDPOINT_FORO_NOTIFICAR = `${BACKEND_URL}/api/foro/notificar`
 
 // Construye un Error con status + mensaje legible (para que la UI ramifique).
 function errorBackend(mensaje, { status = null, data = null, red = false } = {}) {
@@ -412,4 +415,44 @@ export async function obtenerCumpleanosHoy() {
   return data.cumpleaneros
     .filter((c) => c && String(c.nombre || '').trim())
     .map((c) => ({ nombre: String(c.nombre).trim(), esYo: c.esYo === true }))
+}
+
+// --------------------------------------------------------------------------
+// Foro: notificar un like/comentario (el backend crea la notificación).
+// --------------------------------------------------------------------------
+
+/**
+ * Avisa al backend de que el socio dio like o comentó un post, para que CREE la
+ * notificación al AUTOR (las reglas no dejan que el cliente la cree). El backend
+ * resuelve el destinatario leyendo el propio post y nunca notifica al autor de
+ * sí mismo. "Fire and forget": degrada en silencio si falla, porque la noti es
+ * secundaria y NO debe romper el like/comentario que ya se guardó en Firestore.
+ *
+ * @param {string} postId - id del post reaccionado/comentado.
+ * @param {'like'|'comentario'} tipo - tipo de aviso.
+ * @returns {Promise<void>}
+ */
+export async function notificarForo(postId, tipo) {
+  const user = auth.currentUser
+  if (!user || !postId) return
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    return
+  }
+
+  try {
+    await fetch(ENDPOINT_FORO_NOTIFICAR, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ postId, tipo }),
+    })
+  } catch {
+    // Silencioso a propósito: el aviso es secundario.
+  }
 }
