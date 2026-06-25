@@ -363,7 +363,14 @@ async function enviarComentario(p) {
     enviandoComentario.value = false
   }
 }
-async function borrarComentario(p, c) {
+// Borrado de comentario CON confirmación (modal), igual que los posts.
+// Antes se borraba directo al tocar la X; ahora primero pide confirmar.
+const comentABorrar = ref(null) // { p, c }
+const borrandoComent = ref(false)
+async function confirmarBorrarComentario() {
+  if (!comentABorrar.value || !gymId.value) return
+  borrandoComent.value = true
+  const { p, c } = comentABorrar.value
   try {
     await deleteDoc(
       doc(db, 'gyms', gymId.value, 'foro', p.id, 'comentarios', c.id)
@@ -371,8 +378,11 @@ async function borrarComentario(p, c) {
     await updateDoc(doc(db, 'gyms', gymId.value, 'foro', p.id), {
       comentariosCount: increment(-1),
     })
+    comentABorrar.value = null
   } catch (e) {
     console.error('[foro] borrar comentario:', e)
+  } finally {
+    borrandoComent.value = false
   }
 }
 
@@ -500,7 +510,10 @@ onUnmounted(() => {
         <header class="post__head">
           <span class="avatar">{{ inicial(p.autorNombre) }}</span>
           <div class="post__meta">
-            <span class="post__autor">{{ p.autorNombre }}</span>
+            <span class="post__autor-row">
+              <span class="post__autor">{{ p.autorNombre }}</span>
+              <span v-if="p.esStaff" class="badge-staff">Staff</span>
+            </span>
             <span class="post__fecha">{{ hace(p.creadoEn) }}</span>
           </div>
           <button
@@ -560,6 +573,7 @@ onUnmounted(() => {
               <div class="coment__cuerpo">
                 <div class="coment__meta">
                   <span class="coment__autor">{{ c.autorNombre }}</span>
+                  <span v-if="c.esStaff" class="badge-staff">Staff</span>
                   <span class="coment__fecha">{{ hace(c.creadoEn) }}</span>
                 </div>
                 <p class="coment__texto">{{ c.texto }}</p>
@@ -569,7 +583,7 @@ onUnmounted(() => {
                 class="coment__borrar"
                 type="button"
                 aria-label="Borrar comentario"
-                @click="borrarComentario(p, c)"
+                @click="comentABorrar = { p, c }"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                      stroke-linecap="round" stroke-linejoin="round">
@@ -618,6 +632,24 @@ onUnmounted(() => {
             <button class="btn-ghost" type="button" @click="postABorrar = null">Cancelar</button>
             <button class="btn-danger" type="button" :disabled="borrandoPost" @click="confirmarBorrarPost">
               {{ borrandoPost ? 'Borrando…' : 'Sí, borrar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Confirmar borrar comentario -->
+    <Transition name="modal">
+      <div v-if="comentABorrar" class="modal" @click.self="comentABorrar = null">
+        <div class="modal__panel">
+          <h3 class="modal__title">Borrar comentario</h3>
+          <p class="modal__text">
+            ¿Seguro que quieres borrar tu comentario? Esta acción no se puede deshacer.
+          </p>
+          <div class="modal__acciones">
+            <button class="btn-ghost" type="button" @click="comentABorrar = null">Cancelar</button>
+            <button class="btn-danger" type="button" :disabled="borrandoComent" @click="confirmarBorrarComentario">
+              {{ borrandoComent ? 'Borrando…' : 'Sí, borrar' }}
             </button>
           </div>
         </div>
@@ -748,6 +780,28 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Fila nombre + insignia: el nombre trunca, la insignia siempre se ve. */
+.post__autor-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* Insignia "Staff" para avisos del gym (publicaciones/comentarios del panel). */
+.badge-staff {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
 }
 .post__fecha {
   font-size: 0.76rem;
