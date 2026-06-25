@@ -20,13 +20,19 @@ import {
   deleteDoc,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { useRoute } from 'vue-router'
 import { useTema } from '../composables/useTema'
 import { useSocioStore } from '../stores/socio'
 import { obtenerCumpleanosHoy } from '../services/backend'
 
 const { tema, toggle } = useTema()
 const socio = useSocioStore()
+const route = useRoute()
 const notifAbierta = ref(false)
+
+// Cerrar el popover de notificaciones al cambiar de pestaña/ruta.
+// (Antes solo se cerraba al tocar fuera; al navegar quedaba abierto.)
+watch(() => route.fullPath, () => { notifAbierta.value = false })
 
 // Cumpleañeros de HOY en el gym (lista de { nombre, esYo }). Lo llena el backend.
 const cumpleHoy = ref([])
@@ -365,11 +371,21 @@ function hace(creadoEn) {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: var(--surface-glass);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  /* Fondo OPACO por defecto: en Android (sobre todo como PWA) el backdrop-filter
+     no se renderiza y un fondo translúcido dejaría ver lo de atrás (se ve
+     transparente). El vidrio se aplica más abajo solo donde sí hay soporte. */
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
   padding-top: var(--safe-top);
+}
+/* Solo navegadores que SÍ aplican el desenfoque (iOS Safari, Chrome desktop…)
+   usan el vidrio translúcido. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar {
+    background: var(--surface-glass);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
 }
 .topbar__inner {
   width: 100%;

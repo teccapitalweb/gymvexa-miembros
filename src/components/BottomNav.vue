@@ -113,14 +113,22 @@ const { abierto, abrir } = useDrawer()
   right: 0;
   bottom: 0;
   z-index: 50;
-  /* Vidrio que se adapta al tema (claro/oscuro). */
-  background: var(--surface-glass);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  /* Fondo OPACO por defecto: en Android el backdrop-filter no siempre se
+     renderiza (sobre todo como PWA) y el translúcido deja ver lo de atrás.
+     El vidrio se aplica abajo solo donde sí hay soporte. */
+  background: var(--surface);
   border-top: 1px solid var(--line);
   padding-bottom: var(--safe-bottom);
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
+}
+/* Vidrio que se adapta al tema (claro/oscuro), solo donde el navegador lo aplica. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .bottom-nav {
+    background: var(--surface-glass);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+  }
 }
 
 .bottom-nav__inner {
