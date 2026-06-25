@@ -6,6 +6,12 @@
 import { ref, computed } from 'vue'
 import { RUTINAS_PREDISENADAS, NIVELES, OBJETIVOS, DIAS_SEMANA } from '../data/rutinasPredisenadas'
 import ProgramarRutina from '../components/ProgramarRutina.vue'
+import { useSocioStore } from '../stores/socio'
+import { useAuthStore } from '../stores/auth'
+import { leerEjercicioPorBaseKey } from '../services/catalogo'
+
+const socio = useSocioStore()
+const auth = useAuthStore()
 
 const STORAGE_KEY = 'gv-rutina-activa'
 
@@ -184,6 +190,38 @@ const DUMBBELL = '<path d="M6.5 9v6M17.5 9v6M6.5 12h11M3.5 10.5v3M20.5 10.5v3"/>
 const familia = (grupo) => FAMILIA[grupo] || null
 const grupoColor = (grupo) => FAMILIA_COLOR[familia(grupo)] || '#9fb0cc'
 const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
+
+// --- Detalle de un EJERCICIO (lee el catálogo del gym por baseKey) ---
+// Al tocar un ejercicio de la rutina, leemos gyms/{gymId}/ejercicios/base_<baseKey>.
+// Si no está en el catálogo, degradamos al snapshot que ya trae la rutina (fallback).
+const ejAbierto = ref(null) // ejercicio de la rutina: { baseKey, nombre, grupo, series, reps, descanso, notas }
+const ejDetalle = ref(null) // datos del catálogo (o null si no está)
+const ejCargando = ref(false)
+const ejEnCatalogo = computed(() => !!ejDetalle.value)
+
+// Nombre/grupo a mostrar: del catálogo si existe; si no, el snapshot de la rutina.
+const ejNombre = computed(() => ejDetalle.value?.nombre || ejAbierto.value?.nombre || '')
+const ejGrupoPrincipal = computed(
+  () => ejDetalle.value?.grupoMuscular || ejAbierto.value?.grupo || '',
+)
+const ejSecundarios = computed(() => ejDetalle.value?.grupoMuscularSecundario || [])
+
+async function abrirEjercicio(e) {
+  ejAbierto.value = e
+  ejDetalle.value = null
+  ejCargando.value = true
+  try {
+    const gymId = socio.gymId || auth.gymIdClaim
+    ejDetalle.value = await leerEjercicioPorBaseKey(gymId, e.baseKey)
+  } finally {
+    ejCargando.value = false
+  }
+}
+function cerrarEjercicio() {
+  ejAbierto.value = null
+  ejDetalle.value = null
+  ejCargando.value = false
+}
 </script>
 
 <template>
@@ -214,22 +252,30 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
         <h2 class="dia__title">{{ dia.nombre }}</h2>
         <ul class="ejs">
           <li v-for="(e, ei) in dia.ejercicios" :key="ei" class="ejx">
-            <span class="ejx__ic" :style="{ color: grupoColor(e.grupo) }" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-                   v-html="grupoSvg(e.grupo)"></svg>
-            </span>
-            <span class="ejx__body">
-              <span class="ejx__name">{{ e.nombre }}</span>
-              <span class="ejx__meta">
-                <span class="ejx__grupo">{{ e.grupo }}</span>
-                <span v-if="e.notas" class="ejx__nota">· {{ e.notas }}</span>
+            <button type="button" class="ejx__btn" @click="abrirEjercicio(e)">
+              <span class="ejx__ic" :style="{ color: grupoColor(e.grupo) }" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                     v-html="grupoSvg(e.grupo)"></svg>
               </span>
-            </span>
-            <span class="ejx__sr">
-              <span class="ejx__reps">{{ e.series }} × {{ e.reps }}</span>
-              <span class="ejx__rest">descanso {{ e.descanso }}</span>
-            </span>
+              <span class="ejx__body">
+                <span class="ejx__name">{{ e.nombre }}</span>
+                <span class="ejx__meta">
+                  <span class="ejx__grupo">{{ e.grupo }}</span>
+                  <span v-if="e.notas" class="ejx__nota">· {{ e.notas }}</span>
+                </span>
+              </span>
+              <span class="ejx__sr">
+                <span class="ejx__reps">{{ e.series }} × {{ e.reps }}</span>
+                <span class="ejx__rest">descanso {{ e.descanso }}</span>
+              </span>
+              <span class="ejx__chev" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </span>
+            </button>
           </li>
         </ul>
       </section>
@@ -280,6 +326,79 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
             Reacomodar mi semana
           </button>
           <button class="btn btn--ghost" @click="quitar">Quitar</button>
+        </div>
+      </div>
+      <!-- ===================== DETALLE DE EJERCICIO (catálogo) ===================== -->
+      <div v-if="ejAbierto" class="ejd" role="dialog" aria-modal="true" :aria-label="ejNombre">
+        <div class="ejd__overlay" @click="cerrarEjercicio" aria-hidden="true"></div>
+        <div class="ejd__sheet card">
+          <header class="ejd__head">
+            <div class="ejd__head-txt">
+              <p class="ejd__kicker">Ejercicio</p>
+              <h2 class="ejd__title">{{ ejNombre }}</h2>
+            </div>
+            <button class="ejd__close" type="button" aria-label="Cerrar" @click="cerrarEjercicio">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+            </button>
+          </header>
+
+          <!-- Slot de MEDIA: preparado para imagen/video demo (mejora futura). Hoy
+               muestra el ícono del grupo como placeholder, sin descargar nada. -->
+          <div class="ejd__media" aria-hidden="true">
+            <span class="ejd__media-ic" :style="{ color: grupoColor(ejGrupoPrincipal) }">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+                   v-html="grupoSvg(ejGrupoPrincipal)"></svg>
+            </span>
+            <span class="ejd__media-hint">Video demo próximamente</span>
+          </div>
+
+          <!-- Cargando el detalle del catálogo -->
+          <div v-if="ejCargando" class="ejd__loading">
+            <span class="ejd__spinner" aria-hidden="true"></span>
+            <span>Cargando detalle…</span>
+          </div>
+
+          <template v-else>
+            <!-- Detalle del catálogo -->
+            <div v-if="ejEnCatalogo" class="ejd__info">
+              <div class="ejd__chips">
+                <span v-if="ejGrupoPrincipal" class="ejd__chip ejd__chip--main">{{ ejGrupoPrincipal }}</span>
+                <span v-for="g in ejSecundarios" :key="g" class="ejd__chip">{{ g }}</span>
+              </div>
+              <dl v-if="ejDetalle.tipo || ejDetalle.equipo" class="ejd__facts">
+                <div v-if="ejDetalle.tipo" class="ejd__fact">
+                  <dt>Tipo</dt><dd>{{ ejDetalle.tipo }}</dd>
+                </div>
+                <div v-if="ejDetalle.equipo" class="ejd__fact">
+                  <dt>Equipo</dt><dd>{{ ejDetalle.equipo }}</dd>
+                </div>
+              </dl>
+              <p v-if="ejDetalle.descripcion" class="ejd__desc">{{ ejDetalle.descripcion }}</p>
+            </div>
+
+            <!-- Fallback elegante: el ejercicio no está en el catálogo del gym -->
+            <div v-else class="ejd__info">
+              <div class="ejd__chips" v-if="ejGrupoPrincipal">
+                <span class="ejd__chip ejd__chip--main">{{ ejGrupoPrincipal }}</span>
+              </div>
+              <p class="ejd__fallback">Aún no hay más detalle de este ejercicio en tu gimnasio.</p>
+            </div>
+          </template>
+
+          <!-- Plan de la rutina: series/reps/descanso (siempre disponibles) -->
+          <div class="ejd__plan">
+            <div class="ejd__plan-item">
+              <span class="ejd__plan-num">{{ ejAbierto.series }} × {{ ejAbierto.reps }}</span>
+              <span class="ejd__plan-lab">Series × reps</span>
+            </div>
+            <div class="ejd__plan-item">
+              <span class="ejd__plan-num">{{ ejAbierto.descanso }}</span>
+              <span class="ejd__plan-lab">Descanso</span>
+            </div>
+          </div>
+          <p v-if="ejAbierto.notas" class="ejd__notas">{{ ejAbierto.notas }}</p>
         </div>
       </div>
     </template>
@@ -476,14 +595,34 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
   letter-spacing: -0.01em;
 }
 .ejs { list-style: none; display: flex; flex-direction: column; gap: 4px; }
-.ejx {
+.ejx { border-top: 1px solid var(--line); }
+.ejx:first-child { border-top: 0; }
+.ejx__btn {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   padding: 10px 6px;
-  border-top: 1px solid var(--line);
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--r-md);
+  transition: background 0.16s var(--ease);
+  -webkit-tap-highlight-color: transparent;
 }
-.ejx:first-child { border-top: 0; }
+.ejx__btn:hover { background: var(--surface-2); }
+.ejx__btn:active { background: var(--surface-3); }
+.ejx__chev {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  transition: transform 0.16s var(--ease), color 0.16s var(--ease);
+}
+.ejx__btn:hover .ejx__chev { color: var(--accent); transform: translateX(2px); }
 .ejx__ic {
   flex: 0 0 auto;
   display: grid;
@@ -716,4 +855,192 @@ const grupoSvg = (grupo) => FAMILIA_SVG[familia(grupo)] || DUMBBELL
   background: var(--accent-soft);
 }
 .vacio .btn { width: auto; height: 44px; padding: 0 18px; }
+
+/* ===================== DETALLE DE EJERCICIO (hoja inferior) ===================== */
+.ejd {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.ejd__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 8, 20, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.ejd__sheet {
+  position: relative;
+  z-index: 1;
+  width: min(480px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-bottom: calc(var(--safe-bottom) + 20px);
+  animation: ejdSubir 0.28s var(--ease);
+}
+@keyframes ejdSubir {
+  from { transform: translateY(18px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (min-width: 540px) {
+  .ejd { align-items: center; }
+  .ejd__sheet { border-radius: var(--r-lg); }
+}
+
+.ejd__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ejd__head-txt { min-width: 0; }
+.ejd__kicker {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--cyan-bright);
+}
+.ejd__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin: 2px 0 0;
+}
+.ejd__close {
+  flex: 0 0 auto;
+  border: 0;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.ejd__close:active { background: var(--surface-3); color: var(--text); }
+
+/* Slot de media (placeholder; preparado para imagen/video futuros) */
+.ejd__media {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 130px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px dashed var(--line-strong);
+}
+.ejd__media-ic { display: grid; place-items: center; }
+.ejd__media-hint {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+
+/* Cargando */
+.ejd__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 0;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+.ejd__spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid var(--surface-3);
+  border-top-color: var(--accent);
+  animation: ejdSpin 0.7s linear infinite;
+}
+@keyframes ejdSpin { to { transform: rotate(360deg); } }
+
+.ejd__info { display: flex; flex-direction: column; gap: 14px; }
+.ejd__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ejd__chip {
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+}
+.ejd__chip--main {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.ejd__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin: 0;
+}
+.ejd__fact { display: flex; flex-direction: column; gap: 2px; }
+.ejd__fact dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+.ejd__fact dd {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: capitalize;
+}
+.ejd__desc { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--text-dim); }
+.ejd__fallback { margin: 0; font-size: 0.88rem; color: var(--text-faint); }
+
+/* Plan (series/reps/descanso de la rutina) */
+.ejd__plan {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.ejd__plan-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+.ejd__plan-num {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ejd__plan-lab {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.ejd__notas {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--cyan-bright);
+}
 </style>
