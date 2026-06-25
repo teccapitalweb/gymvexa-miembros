@@ -23,7 +23,8 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore'
-import { db } from '../firebase'
+import { db, storage } from '../firebase'
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
 import { notificarForo } from '../services/backend'
@@ -128,9 +129,92 @@ async function alternarLike(p) {
 const texto = ref('')
 const publicando = ref(false)
 const errorPub = ref('')
+
+// --- Imagen del post (opcional) ---
+const imagenBlob = ref(null) // blob comprimido listo para subir
+const imagenPreview = ref('') // dataURL para la vista previa
+const errorImg = ref('')
+const fileInput = ref(null) // <input type=file> oculto
+
+// Comprime y redimensiona la imagen en el CLIENTE (máx 1280px, JPEG ~0.82) para
+// que la subida sea rápida y ligera sin importar el tamaño de la foto del
+// celular (una foto de 8MB queda en ~200-400KB). Evita topar el límite de 5MB.
+function comprimirImagen(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const MAX = 1280
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        if (width >= height) {
+          height = Math.round((height * MAX) / width)
+          width = MAX
+        } else {
+          width = Math.round((width * MAX) / height)
+          height = MAX
+        }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error('proceso'))
+          resolve({ blob, dataUrl: canvas.toDataURL('image/jpeg', 0.82) })
+        },
+        'image/jpeg',
+        0.82
+      )
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('imagen'))
+    }
+    img.src = url
+  })
+}
+
+function abrirSelectorImagen() {
+  errorImg.value = ''
+  fileInput.value?.click()
+}
+
+async function onElegirImagen(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  errorImg.value = ''
+  if (!file.type.startsWith('image/')) {
+    errorImg.value = 'Selecciona una imagen.'
+    if (fileInput.value) fileInput.value.value = ''
+    return
+  }
+  try {
+    const { blob, dataUrl } = await comprimirImagen(file)
+    imagenBlob.value = blob
+    imagenPreview.value = dataUrl
+  } catch (err) {
+    console.error('[foro] imagen:', err)
+    errorImg.value = 'No se pudo procesar la imagen.'
+  } finally {
+    // Permite volver a elegir el MISMO archivo (si lo quitó y lo vuelve a poner).
+    if (fileInput.value) fileInput.value.value = ''
+  }
+}
+
+function quitarImagen() {
+  imagenBlob.value = null
+  imagenPreview.value = ''
+  errorImg.value = ''
+  if (fileInput.value) fileInput.value.value = ''
+}
+
 async function publicar() {
   const t = texto.value.trim()
-  if (!t || publicando.value) return
+  // Se puede publicar con texto, con imagen, o ambos.
+  if ((!t && !imagenBlob.value) || publicando.value) return
   if (!puedePublicar.value) {
     errorPub.value = 'Verifica tu correo para poder publicar.'
     return
@@ -138,7 +222,19 @@ async function publicar() {
   publicando.value = true
   errorPub.value = ''
   try {
-    await addDoc(collection(db, 'gyms', gymId.value, 'foro'), {
+    // Si hay imagen, primero se sube a Storage y se obtiene su URL.
+    let imagenUrl = null
+    let imagenPath = null
+    if (imagenBlob.value) {
+      // Guardamos la RUTA además de la URL: así el borrado (manual o el cron del
+      // backend) puede eliminar el archivo de Storage sin tener que parsear la URL.
+      imagenPath = `gyms/${gymId.value}/foro/${miUid.value}_${Date.now()}.jpg`
+      const ruta = storageRef(storage, imagenPath)
+      await uploadBytes(ruta, imagenBlob.value, { contentType: 'image/jpeg' })
+      imagenUrl = await getDownloadURL(ruta)
+    }
+
+    const datos = {
       uid: miUid.value,
       autorNombre: miNombre.value,
       // Necesario para las notificaciones: el backend lee este campo del post
@@ -149,8 +245,15 @@ async function publicar() {
       likedBy: [],
       comentariosCount: 0,
       creadoEn: serverTimestamp(),
-    })
+    }
+    if (imagenUrl) {
+      datos.imagenUrl = imagenUrl
+      datos.imagenPath = imagenPath
+    }
+
+    await addDoc(collection(db, 'gyms', gymId.value, 'foro'), datos)
     texto.value = ''
+    quitarImagen()
   } catch (e) {
     console.error('[foro] publicar:', e)
     errorPub.value = 'No se pudo publicar. Inténtalo de nuevo.'
@@ -168,9 +271,19 @@ const borrandoPost = ref(false)
 async function confirmarBorrarPost() {
   if (!postABorrar.value || !gymId.value) return
   borrandoPost.value = true
+  const post = postABorrar.value
   try {
-    await deleteDoc(doc(db, 'gyms', gymId.value, 'foro', postABorrar.value.id))
-    if (postAbierto.value === postABorrar.value.id) cerrarComentarios()
+    await deleteDoc(doc(db, 'gyms', gymId.value, 'foro', post.id))
+    // Borra también la imagen de Storage (si tenía) para no dejarla huérfana.
+    // Best-effort: si falla, NO rompe el borrado del post. Usa la ruta guardada;
+    // para posts viejos sin imagenPath, cae a la URL (ref() también la acepta).
+    const refImg = post.imagenPath || post.imagenUrl
+    if (refImg) {
+      deleteObject(storageRef(storage, refImg)).catch((err) =>
+        console.error('[foro] borrar imagen:', err)
+      )
+    }
+    if (postAbierto.value === post.id) cerrarComentarios()
     postABorrar.value = null
   } catch (e) {
     console.error('[foro] borrar post:', e)
@@ -302,21 +415,63 @@ onUnmounted(() => {
           :disabled="!puedePublicar"
         ></textarea>
       </div>
+
+      <!-- Vista previa de la imagen elegida -->
+      <div v-if="imagenPreview" class="composer__preview">
+        <img :src="imagenPreview" alt="Vista previa" />
+        <button
+          type="button"
+          class="composer__preview-x"
+          aria-label="Quitar imagen"
+          @click="quitarImagen"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- input de archivo oculto -->
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/*"
+        class="composer__file"
+        @change="onElegirImagen"
+      />
+
       <p v-if="!puedePublicar" class="composer__aviso">
         Verifica tu correo para poder publicar y comentar.
       </p>
+      <p v-else-if="errorImg" class="composer__error">{{ errorImg }}</p>
       <p v-else-if="errorPub" class="composer__error">{{ errorPub }}</p>
+
       <div class="composer__foot">
-        <span class="composer__hint">Las publicaciones se borran a los 15 días.</span>
+        <button
+          class="composer__foto"
+          type="button"
+          :disabled="!puedePublicar || publicando"
+          @click="abrirSelectorImagen"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2.5" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="m21 15-5-5L5 21" />
+          </svg>
+          <span>Foto</span>
+        </button>
         <button
           class="btn-pub"
           type="button"
-          :disabled="!texto.trim() || publicando || !puedePublicar"
+          :disabled="(!texto.trim() && !imagenBlob) || publicando || !puedePublicar"
           @click="publicar"
         >
           {{ publicando ? 'Publicando…' : 'Publicar' }}
         </button>
       </div>
+      <p class="composer__hint composer__hint--abajo">Las publicaciones se borran a los 15 días.</p>
     </div>
 
     <!-- Cargando -->
@@ -903,5 +1058,61 @@ onUnmounted(() => {
   .modal-enter-active .modal__panel, .modal-leave-active .modal__panel {
     transition: none;
   }
+}
+/* Composer: imagen (botón Foto + vista previa) */
+.composer__file { display: none; }
+.composer__preview {
+  position: relative;
+  margin: 10px 0 0;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.composer__preview img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+}
+.composer__preview-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+.composer__preview-x svg { width: 16px; height: 16px; }
+.composer__foto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s, background 0.18s;
+}
+.composer__foto:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.composer__foto:disabled { opacity: 0.5; cursor: default; }
+.composer__foto svg { width: 18px; height: 18px; }
+.composer__hint--abajo {
+  margin: 10px 2px 0;
+  text-align: center;
 }
 </style>

@@ -13,6 +13,7 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from 'firebase/firestore'
+import { getStorage } from 'firebase/storage'
 
 // TODO: pegar config web de gymteck-1708f
 // (Firebase Console -> Configuración del proyecto -> Tus apps -> App web -> SDK config)
@@ -38,5 +39,8 @@ export const db = initializeFirestore(app, {
     tabManager: persistentMultipleTabManager(),
   }),
 })
+
+// Storage (imágenes del foro). El bucket es el de storageBucket de arriba.
+export const storage = getStorage(app)
 
 export default app
