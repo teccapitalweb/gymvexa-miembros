@@ -28,6 +28,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'fi
 import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
 import { notificarForo } from '../services/backend'
+import { marcarForoVisto, ultimoPostMs } from '../composables/useForoNuevos'
 
 const auth = useAuthStore()
 const socioStore = useSocioStore()
@@ -394,9 +395,17 @@ onMounted(() => {
   tick = setInterval(() => {
     ahora.value = Date.now()
   }, 60000)
+  // Al entrar al foro (por la pestaña o desde una notificación) lo marcamos como
+  // VISTO: esto apaga el puntito de "hay publicaciones nuevas".
+  marcarForoVisto()
 })
 watch(gymId, (g) => {
   if (g) suscribir()
+})
+// Si llega un post nuevo MIENTRAS el socio está viendo el foro, lo marcamos visto
+// al instante (lo está viendo: no debe encenderse el puntito).
+watch(ultimoPostMs, () => {
+  marcarForoVisto()
 })
 onUnmounted(() => {
   desuscribir()
