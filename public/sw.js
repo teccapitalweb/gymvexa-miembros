@@ -88,3 +88,53 @@ self.addEventListener('fetch', (event) => {
   }
   // Cualquier otro GET del mismo origen: comportamiento por defecto (red).
 })
+
+/* ------------------------------------------------------------------ *
+ * NOTIFICACIONES PUSH (FCM web)
+ * Recibe el aviso aunque la app esté cerrada y muestra la notificación.
+ * El backend (Fase 2) enviará el aviso como 'data' para tener control total
+ * del título/cuerpo/ícono/destino y evitar notificaciones duplicadas.
+ * ------------------------------------------------------------------ */
+self.addEventListener('push', (event) => {
+  let payload = {}
+  try {
+    payload = event.data ? event.data.json() : {}
+  } catch {
+    payload = { notification: { body: event.data ? event.data.text() : '' } }
+  }
+
+  // Aceptamos { notification:{...}, data:{...} } o campos planos.
+  const n = payload.notification || payload.data || payload || {}
+  const titulo = n.title || n.titulo || 'Gymvexa'
+  const cuerpo = n.body || n.cuerpo || ''
+  const url = (payload.data && payload.data.url) || n.url || '/foro'
+
+  event.waitUntil(
+    self.registration.showNotification(titulo, {
+      body: cuerpo,
+      icon: '/gymvexa-icon.png',
+      badge: '/gymvexa-icon.png',
+      tag: n.tag || 'gymvexa-aviso',
+      renotify: true,
+      data: { url },
+    }),
+  )
+})
+
+// Al tocar la notificación: enfocar una pestaña abierta o abrir una nueva.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const destino = (event.notification.data && event.notification.data.url) || '/foro'
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((lista) => {
+      for (const c of lista) {
+        if ('focus' in c) {
+          c.focus()
+          if ('navigate' in c) c.navigate(destino).catch(() => {})
+          return
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(destino)
+    }),
+  )
+})
