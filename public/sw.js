@@ -112,8 +112,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(titulo, {
       body: cuerpo,
-      icon: '/gymvexa-icon.png',
-      badge: '/gymvexa-icon.png',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/notif-badge.png',
       tag: n.tag || 'gymvexa-aviso',
       renotify: true,
       data: { url },
@@ -126,15 +126,22 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const destino = (event.notification.data && event.notification.data.url) || '/foro'
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((lista) => {
+    (async () => {
+      const lista = await clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      })
+      // Si ya hay una ventana de la app abierta: enfócala y pídele al router que
+      // navegue al foro (instantáneo, sin recargar toda la app).
       for (const c of lista) {
         if ('focus' in c) {
-          c.focus()
-          if ('navigate' in c) c.navigate(destino).catch(() => {})
+          await c.focus()
+          c.postMessage({ tipo: 'navegar', url: destino })
           return
         }
       }
-      if (clients.openWindow) return clients.openWindow(destino)
-    }),
+      // Si no hay ninguna abierta: abre la app directamente en el foro.
+      if (clients.openWindow) await clients.openWindow(destino)
+    })(),
   )
 })
