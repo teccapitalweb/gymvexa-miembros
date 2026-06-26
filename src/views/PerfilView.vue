@@ -1,19 +1,76 @@
 <script setup>
 // Perfil del socio (solo lectura): datos, membresía, saldo, visitas.
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
 import { centavosAPesos } from '../composables/useDinero'
 import { interpretarMembresia } from '../composables/useMembresia'
+import {
+  pushSoportado,
+  pushActivoLocal,
+  permisoActual,
+  iosNecesitaInstalar,
+  activarPush,
+  desactivarPush,
+} from '../composables/usePush'
 
 const router = useRouter()
 const auth = useAuthStore()
 const socio = useSocioStore()
 
+// --- Notificaciones push ---
+const notifSoportado = ref(false)
+const notifActivo = ref(false)
+const notifTrabajando = ref(false)
+const notifMsg = ref('')
+const notifIosInstalar = ref(false)
+const notifDenegado = ref(false)
+
+async function refrescarEstadoPush() {
+  notifIosInstalar.value = iosNecesitaInstalar()
+  notifDenegado.value = permisoActual() === 'denied'
+  notifSoportado.value = await pushSoportado()
+  notifActivo.value = pushActivoLocal()
+}
+
+async function alternarPush() {
+  if (notifTrabajando.value) return
+  notifMsg.value = ''
+  notifTrabajando.value = true
+  try {
+    if (notifActivo.value) {
+      await desactivarPush()
+      notifActivo.value = false
+    } else {
+      const r = await activarPush()
+      if (r.ok) {
+        notifActivo.value = true
+        notifMsg.value = 'Listo, recibirás los avisos de tu gimnasio.'
+      } else {
+        notifActivo.value = false
+        if (r.motivo === 'denegado') {
+          notifMsg.value = 'Permiso bloqueado. Actívalo en los ajustes de tu navegador.'
+          notifDenegado.value = true
+        } else if (r.motivo === 'ios_instalar') {
+          notifMsg.value = 'En iPhone, primero instala la app en tu pantalla de inicio.'
+          notifIosInstalar.value = true
+        } else if (r.motivo === 'no_soportado') {
+          notifMsg.value = 'Tu navegador no admite notificaciones.'
+        } else {
+          notifMsg.value = 'No se pudo activar. Inténtalo de nuevo.'
+        }
+      }
+    }
+  } finally {
+    notifTrabajando.value = false
+  }
+}
+
 onMounted(() => {
   // Si se entra directo a /perfil, aseguramos la vinculación.
   if (!socio.estaVinculado && !socio.resuelto) socio.vincularSocio()
+  refrescarEstadoPush()
 })
 
 const d = computed(() => socio.datos || {})
@@ -93,6 +150,42 @@ async function cerrarSesion() {
           <span class="linea__k">Adeudo</span>
           <span class="linea__v tono--rojo">{{ centavosAPesos(d.deudaActual) }}</span>
         </div>
+      </section>
+
+      <!-- Notificaciones push -->
+      <section class="card bloque">
+        <h2 class="bloque__title">Notificaciones</h2>
+        <div class="notif">
+          <div class="notif__info">
+            <span class="notif__label">Avisos del gimnasio</span>
+            <span class="notif__sub">Promos, descuentos y novedades</span>
+          </div>
+          <button
+            v-if="(notifSoportado && !notifDenegado) || notifActivo"
+            class="switch"
+            :class="{ 'switch--on': notifActivo }"
+            :disabled="notifTrabajando"
+            role="switch"
+            :aria-checked="notifActivo ? 'true' : 'false'"
+            aria-label="Avisos del gimnasio"
+            @click="alternarPush"
+          >
+            <span class="switch__dot"></span>
+          </button>
+        </div>
+
+        <p v-if="notifIosInstalar && !notifActivo" class="notif__ayuda">
+          Para recibir avisos en iPhone, instala la app en tu pantalla de inicio
+          (botón Compartir → Agregar a inicio).
+        </p>
+        <p v-else-if="notifDenegado && !notifActivo" class="notif__ayuda">
+          Las notificaciones están bloqueadas. Actívalas en los ajustes de tu navegador
+          para este sitio.
+        </p>
+        <p v-else-if="!notifSoportado && !notifActivo" class="notif__ayuda">
+          Tu navegador no admite notificaciones push.
+        </p>
+        <p v-if="notifMsg" class="notif__msg">{{ notifMsg }}</p>
       </section>
     </template>
 
@@ -196,4 +289,44 @@ async function cerrarSesion() {
 
 .perfil__aviso { text-align: center; color: var(--text-dim); padding: 12px; }
 .perfil__logout { margin-top: 4px; }
+
+/* Notificaciones push */
+.notif { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.notif__info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.notif__label { font-weight: 700; font-size: 0.98rem; }
+.notif__sub { color: var(--text-dim); font-size: 0.82rem; }
+.notif__ayuda { color: var(--text-dim); font-size: 0.82rem; line-height: 1.4; margin-top: 2px; }
+.notif__msg { color: var(--cyan-bright); font-size: 0.84rem; line-height: 1.4; margin-top: 2px; }
+
+/* Switch (toggle) */
+.switch {
+  flex-shrink: 0;
+  position: relative;
+  width: 50px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.22);
+  border: 1px solid var(--border-soft);
+  transition: background 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+.switch:disabled { opacity: 0.6; }
+.switch__dot {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.switch--on {
+  background: linear-gradient(135deg, var(--accent-bright), var(--accent-deep));
+  border-color: transparent;
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+.switch--on .switch__dot { transform: translateY(-50%) translateX(20px); }
+.switch:not(:disabled):active .switch__dot { width: 27px; }
 </style>
