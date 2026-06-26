@@ -62,6 +62,22 @@ export function iosNecesitaInstalar() {
   return esIOS() && !esStandalone()
 }
 
+// ¿Existen las APIs de push en este navegador? En iOS solo aparecen desde 16.4.
+export function apiPushExiste() {
+  return (
+    'Notification' in window &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window
+  )
+}
+
+// iOS instalado como PWA pero SIN las APIs de push => iOS anterior a 16.4.
+// OJO: esto NO es "permiso bloqueado"; es que la función todavía no existe en
+// ese iOS. Por eso amerita un mensaje distinto ("actualiza tu iPhone").
+export function iosDesactualizado() {
+  return esIOS() && esStandalone() && !apiPushExiste()
+}
+
 // Id estable de este dispositivo (se crea una vez y se reutiliza).
 function deviceId() {
   let id = null
