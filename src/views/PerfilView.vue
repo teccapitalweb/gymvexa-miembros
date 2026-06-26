@@ -11,6 +11,9 @@ import {
   pushActivoLocal,
   permisoActual,
   iosNecesitaInstalar,
+  iosDesactualizado,
+  apiPushExiste,
+  esIOS,
   activarPush,
   desactivarPush,
 } from '../composables/usePush'
@@ -25,11 +28,16 @@ const notifActivo = ref(false)
 const notifTrabajando = ref(false)
 const notifMsg = ref('')
 const notifIosInstalar = ref(false)
+const notifIosViejo = ref(false)
 const notifDenegado = ref(false)
+const notifEsIos = ref(false)
 
 async function refrescarEstadoPush() {
-  notifIosInstalar.value = iosNecesitaInstalar()
-  notifDenegado.value = permisoActual() === 'denied'
+  notifEsIos.value = esIOS()
+  notifIosInstalar.value = iosNecesitaInstalar() // iOS en Safari (falta instalar)
+  notifIosViejo.value = iosDesactualizado() // iOS instalado pero < 16.4
+  // "Bloqueado" SOLO si la API existe y el permiso fue negado de verdad.
+  notifDenegado.value = apiPushExiste() && permisoActual() === 'denied'
   notifSoportado.value = await pushSoportado()
   notifActivo.value = pushActivoLocal()
 }
@@ -178,9 +186,14 @@ async function cerrarSesion() {
           Para recibir avisos en iPhone, instala la app en tu pantalla de inicio
           (botón Compartir → Agregar a inicio).
         </p>
+        <p v-else-if="notifIosViejo && !notifActivo" class="notif__ayuda">
+          Para recibir avisos, actualiza tu iPhone a iOS 16.4 o más reciente:
+          Ajustes → General → Actualización de software.
+        </p>
         <p v-else-if="notifDenegado && !notifActivo" class="notif__ayuda">
-          Las notificaciones están bloqueadas. Actívalas en los ajustes de tu navegador
-          para este sitio.
+          Las notificaciones están bloqueadas.
+          <template v-if="notifEsIos">Actívalas en Ajustes → Notificaciones → Gymvexa.</template>
+          <template v-else>Actívalas en los ajustes de tu navegador para este sitio.</template>
         </p>
         <p v-else-if="!notifSoportado && !notifActivo" class="notif__ayuda">
           Tu navegador no admite notificaciones push.
