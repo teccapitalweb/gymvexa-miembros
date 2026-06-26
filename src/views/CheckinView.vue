@@ -4,7 +4,7 @@
 // vista, y tras un escaneo exitoso. Nunca se deja encendida.
 import { ref, computed, onBeforeUnmount } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
-import { Html5Qrcode } from 'html5-qrcode'
+import { useQrScanner } from '../composables/useQrScanner'
 import { useCheckinStore } from '../stores/checkin'
 import { useSocioStore } from '../stores/socio'
 
@@ -13,50 +13,25 @@ const checkin = useCheckinStore()
 const socio = useSocioStore()
 
 const ID_LECTOR = 'qr-lector'
-let instancia = null          // instancia de Html5Qrcode
-let procesandoEscaneo = false // evita callbacks duplicados de un mismo escaneo
+const scanner = useQrScanner(ID_LECTOR) // motor de cámara robusto (compartido)
 
 const escaneando = ref(false)
 const iniciando = ref(false)
 const error = ref('')
 const resultado = ref(null)   // { ok, membresiaVigente, mensaje, nombre, fechaHora }
 
-function mensajeCamara(e) {
-  const txt = String(e?.message || e || '').toLowerCase()
-  const name = String(e?.name || '')
-  if (name === 'NotAllowedError' || txt.includes('permission') || txt.includes('denied')) {
-    return 'No diste permiso para usar la cámara. Actívalo en tu navegador e inténtalo de nuevo.'
-  }
-  if (name === 'NotFoundError' || txt.includes('no camera') || txt.includes('not found')) {
-    return 'No encontramos una cámara en este dispositivo.'
-  }
-  if (name === 'NotReadableError' || txt.includes('in use') || txt.includes('readable')) {
-    return 'La cámara está siendo usada por otra app. Ciérrala e inténtalo de nuevo.'
-  }
-  if (txt.includes('secure') || txt.includes('https')) {
-    return 'La cámara requiere una conexión segura (https) o localhost.'
-  }
-  return 'No pudimos iniciar la cámara. Inténtalo de nuevo.'
-}
-
 async function iniciarCamara() {
   error.value = ''
   resultado.value = null
   checkin.limpiarResultado()
-  procesandoEscaneo = false
   iniciando.value = true
   try {
-    instancia = new Html5Qrcode(ID_LECTOR)
-    await instancia.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 240, height: 240 } },
-      onEscaneoExitoso,
-      // onScanFailure: ruido normal mientras no hay QR; lo ignoramos.
-      () => {},
-    )
+    // Flujo robusto: getCameras -> trasera -> fallback. Lanza un Error con
+    // .mensaje ya clasificado (permiso / sin cámara / en uso / embebido).
+    await scanner.iniciar(onEscaneoExitoso)
     escaneando.value = true
   } catch (e) {
-    error.value = mensajeCamara(e)
+    error.value = e?.mensaje || 'No pudimos iniciar la cámara. Inténtalo de nuevo.'
     await liberarCamara()
   } finally {
     iniciando.value = false
@@ -64,9 +39,6 @@ async function iniciarCamara() {
 }
 
 async function onEscaneoExitoso(textoQR) {
-  if (procesandoEscaneo) return
-  procesandoEscaneo = true
-
   // Detenemos la cámara ANTES de registrar: no la dejamos encendida.
   await liberarCamara()
 
@@ -80,19 +52,7 @@ async function onEscaneoExitoso(textoQR) {
 // Detiene el escaneo y libera el recurso de cámara (stop + clear).
 async function liberarCamara() {
   escaneando.value = false
-  if (!instancia) return
-  try {
-    // isScanning evita el warning de stop() cuando no está activo.
-    if (instancia.isScanning) {
-      await instancia.stop()
-    }
-    instancia.clear()
-  } catch (e) {
-    // Ignoramos errores al detener: el objetivo es liberar el hardware.
-    console.warn('Error al liberar la cámara:', e)
-  } finally {
-    instancia = null
-  }
+  await scanner.liberar()
 }
 
 async function reintentar() {
