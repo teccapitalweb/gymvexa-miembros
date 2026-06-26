@@ -14,6 +14,7 @@ import {
   persistentMultipleTabManager,
 } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
+import { getMessaging, isSupported } from 'firebase/messaging'
 
 // TODO: pegar config web de gymteck-1708f
 // (Firebase Console -> Configuración del proyecto -> Tus apps -> App web -> SDK config)
@@ -42,5 +43,25 @@ export const db = initializeFirestore(app, {
 
 // Storage (imágenes del foro). El bucket es el de storageBucket de arriba.
 export const storage = getStorage(app)
+
+// Messaging (notificaciones push / FCM web).
+// Se inicializa de forma PEREZOSA y protegida con isSupported() para no romper
+// el arranque en navegadores sin soporte de push (p. ej. Safari iOS fuera de la
+// PWA instalada, o navegadores viejos). Devuelve null si no hay soporte.
+let _messaging = null
+let _messagingIntentado = false
+export async function obtenerMessaging() {
+  if (_messaging) return _messaging
+  if (_messagingIntentado) return _messaging
+  _messagingIntentado = true
+  try {
+    if (await isSupported()) {
+      _messaging = getMessaging(app)
+    }
+  } catch {
+    _messaging = null
+  }
+  return _messaging
+}
 
 export default app
