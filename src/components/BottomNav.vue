@@ -5,10 +5,13 @@
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
 import { useDrawer } from '../composables/useDrawer'
+import { useAvisosForo } from '../composables/useForoNuevos'
 
 const route = useRoute()
 const activo = computed(() => route.name)
 const { abierto, abrir } = useDrawer()
+// Puntito de "hay publicaciones nuevas" en la pestaña Foro.
+const { hayNuevos: hayNuevosForo } = useAvisosForo()
 </script>
 
 <template>
@@ -81,6 +84,7 @@ const { abierto, abrir } = useDrawer()
             <path d="M20.5 11.3a7.5 7.5 0 0 1-10.6 6.83L4 20l1.67-5.9A7.5 7.5 0 1 1 20.5 11.3z" />
             <path d="M9 10.5h6.5M9 13.5h4" />
           </svg>
+          <span v-if="hayNuevosForo" class="nav-item__badge" aria-hidden="true"></span>
         </span>
         <span class="nav-item__label">Foro</span>
       </router-link>
@@ -174,6 +178,7 @@ const { abierto, abrir } = useDrawer()
 }
 
 .nav-item__icon {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -182,6 +187,23 @@ const { abierto, abrir } = useDrawer()
   transition: transform 0.2s var(--ease);
 }
 .nav-item:active .nav-item__icon { transform: scale(0.9); }
+
+/* Puntito "hay publicaciones nuevas" (solo en Foro). */
+.nav-item__badge {
+  position: absolute;
+  top: 0;
+  right: 7px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff4d4f;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 7px rgba(255, 77, 79, 0.6);
+  animation: foroBadgePulse 2s ease-in-out infinite;
+}
+@keyframes foroBadgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
 
 .nav-item--active { color: var(--accent); }
 .nav-item--active .nav-item__dot { opacity: 1; transform: scaleX(1); }
