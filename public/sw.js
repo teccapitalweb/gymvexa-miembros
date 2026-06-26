@@ -112,7 +112,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(titulo, {
       body: cuerpo,
-      icon: '/icons/icon-192.png',
+      icon: '/gymvexa-icon.png',
       badge: '/icons/notif-badge.png',
       tag: n.tag || 'gymvexa-aviso',
       renotify: true,
