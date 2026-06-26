@@ -31,3 +31,15 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     })
   })
 }
+
+// Cuando se toca una notificación push y la app YA está abierta, el service
+// worker nos pide navegar (p. ej. al foro). Lo hacemos con el router de Vue:
+// es instantáneo y no recarga toda la app.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    const msg = event.data || {}
+    if (msg.tipo === 'navegar' && msg.url) {
+      router.push(msg.url).catch(() => {})
+    }
+  })
+}
