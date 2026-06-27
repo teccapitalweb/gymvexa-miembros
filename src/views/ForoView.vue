@@ -8,7 +8,7 @@
 // propio y expiración a 15 días del lado cliente. Las IMÁGENES y las
 // NOTIFICACIONES (backend) se enchufan en el siguiente paso; si un post ya trae
 // imagenUrl, esta vista ya la muestra.
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import {
   collection,
   query,
@@ -29,9 +29,46 @@ import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
 import { notificarForo } from '../services/backend'
 import { marcarForoVisto, ultimoPostMs } from '../composables/useForoNuevos'
+import { useRoute } from 'vue-router'
 
 const auth = useAuthStore()
 const socioStore = useSocioStore()
+const route = useRoute()
+
+// --- Ir directo a un post (al tocar una notificación de la campanita) ---
+// La campanita navega a /foro?post=ID (&ver=coment si fue comentario). Aquí
+// hacemos scroll hasta ese post, lo resaltamos un momento y, si fue comentario,
+// abrimos sus comentarios. Como el feed carga async, si el post aún no está,
+// dejamos el objetivo "pendiente" y un watch lo reintenta cuando carguen.
+const postResaltado = ref(null)
+let objetivoPendiente = null
+
+function intentarIrAObjetivo() {
+  if (!objetivoPendiente) return
+  const { postId, ver } = objetivoPendiente
+  const post = postsVisibles.value.find((p) => p.id === postId)
+  if (!post) return // aún no carga (o ya expiró / no existe): esperamos
+  objetivoPendiente = null
+  nextTick(() => {
+    const el = document.getElementById('post-' + postId)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      postResaltado.value = postId
+      setTimeout(() => {
+        if (postResaltado.value === postId) postResaltado.value = null
+      }, 2800)
+    }
+    if (ver === 'coment') abrirComentarios(post)
+  })
+}
+
+function leerObjetivoDeRuta() {
+  const postId = route.query.post
+  if (postId && typeof postId === 'string') {
+    objetivoPendiente = { postId, ver: route.query.ver }
+    intentarIrAObjetivo()
+  }
+}
 
 const gymId = computed(() => socioStore.gymId)
 const miUid = computed(() => auth.uid)
@@ -398,6 +435,8 @@ onMounted(() => {
   // Al entrar al foro (por la pestaña o desde una notificación) lo marcamos como
   // VISTO: esto apaga el puntito de "hay publicaciones nuevas".
   marcarForoVisto()
+  // Si venimos de tocar una notificación (/foro?post=ID), ir a ese post.
+  leerObjetivoDeRuta()
 })
 watch(gymId, (g) => {
   if (g) suscribir()
@@ -407,6 +446,15 @@ watch(gymId, (g) => {
 watch(ultimoPostMs, () => {
   marcarForoVisto()
 })
+// Cuando cargan o cambian los posts, reintenta ir al post objetivo pendiente.
+watch(postsVisibles, () => {
+  intentarIrAObjetivo()
+})
+// Si tocan OTRA notificación estando ya en el foro, el query cambia sin remontar.
+watch(
+  () => route.query.post,
+  () => leerObjetivoDeRuta(),
+)
 onUnmounted(() => {
   desuscribir()
   cerrarComentarios()
@@ -515,7 +563,13 @@ onUnmounted(() => {
 
     <!-- Feed -->
     <div v-else class="foro-lista">
-      <article v-for="p in postsVisibles" :key="p.id" class="post card">
+      <article
+        v-for="p in postsVisibles"
+        :key="p.id"
+        :id="'post-' + p.id"
+        class="post card"
+        :class="{ 'post--resaltado': postResaltado === p.id }"
+      >
         <header class="post__head">
           <span class="avatar">{{ inicial(p.autorNombre) }}</span>
           <div class="post__meta">
@@ -769,6 +823,21 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 11px;
+}
+/* Resaltado temporal al llegar desde una notificación de la campanita. */
+.post--resaltado {
+  animation: postResalta 2.8s ease-out;
+}
+@keyframes postResalta {
+  0% {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 22px var(--accent-glow);
+  }
+  70% {
+    box-shadow: 0 0 0 2px var(--accent), 0 0 22px var(--accent-glow);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
 .post__head {
   display: flex;
