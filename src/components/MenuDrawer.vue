@@ -148,6 +148,16 @@ async function cerrarSesion() {
           <span class="ditem__label">Foro</span>
           <span class="ditem__chev" aria-hidden="true">›</span>
         </button>
+        <button class="ditem" :class="{ 'ditem--active': esActivo('reels') }" @click="ir('/reels')">
+          <span class="ditem__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="3" width="16" height="18" rx="3" /><path d="M10 8.5v7l5-3.5z" />
+            </svg>
+          </span>
+          <span class="ditem__label">Reels</span>
+          <span class="ditem__chev" aria-hidden="true">›</span>
+        </button>
 
         <!-- MI CUENTA -->
         <p class="drawer__kicker">Mi cuenta</p>
