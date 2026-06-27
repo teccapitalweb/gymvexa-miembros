@@ -20,7 +20,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useTema } from '../composables/useTema'
 import { useSocioStore } from '../stores/socio'
 import { useDrawer } from '../composables/useDrawer'
@@ -29,8 +29,21 @@ import { obtenerCumpleanosHoy } from '../services/backend'
 const { tema, toggle } = useTema()
 const socio = useSocioStore()
 const route = useRoute()
+const router = useRouter()
 const { abierto: menuAbierto } = useDrawer()
 const notifAbierta = ref(false)
+
+// Al tocar una notificación de like/comentario, lleva al miembro al foro y
+// directo a ESE post (lo resalta; si fue comentario, abre los comentarios).
+// Las notis sin postId (p. ej. felicitaciones de cumpleaños) no navegan.
+function irAlPost(n) {
+  if (!n || !n.postId) return
+  notifAbierta.value = false
+  router.push({
+    path: '/foro',
+    query: { post: n.postId, ver: n.tipo === 'comentario' ? 'coment' : 'post' },
+  })
+}
 
 // Cerrar el popover de notificaciones al cambiar de pestaña/ruta.
 // (Antes solo se cerraba al tocar fuera; al navegar quedaba abierto.)
@@ -295,8 +308,12 @@ function hace(creadoEn) {
                 <div
                   v-for="n in notis"
                   :key="n.id"
-                  class="nitem"
+                  class="nitem nitem--click"
                   :class="{ 'nitem--unread': n.leida !== true }"
+                  role="button"
+                  tabindex="0"
+                  @click="irAlPost(n)"
+                  @keydown.enter="irAlPost(n)"
                 >
                   <span
                     class="nitem__icon"
@@ -323,7 +340,7 @@ function hace(creadoEn) {
                     class="nitem__del"
                     type="button"
                     aria-label="Quitar aviso"
-                    @click="quitarNoti(n)"
+                    @click.stop="quitarNoti(n)"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                          stroke-linecap="round" stroke-linejoin="round">
@@ -591,6 +608,11 @@ function hace(creadoEn) {
   transition: background 0.18s var(--ease);
 }
 .nitem--unread { background: var(--accent-soft); }
+.nitem--click { cursor: pointer; }
+.nitem--click:active { background: var(--accent-soft); transform: scale(0.99); }
+@media (hover: hover) {
+  .nitem--click:hover { background: var(--accent-soft); }
+}
 .nitem__icon {
   flex-shrink: 0;
   width: 30px;
