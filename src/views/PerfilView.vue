@@ -1,9 +1,11 @@
 <script setup>
 // Perfil del socio (solo lectura): datos, membresía, saldo, visitas.
-import { onMounted, computed, ref } from 'vue'
+import { onMounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
+import { doc, updateDoc } from 'firebase/firestore'
+import { db } from '../firebase'
 import { centavosAPesos } from '../composables/useDinero'
 import { interpretarMembresia } from '../composables/useMembresia'
 import {
@@ -82,6 +84,57 @@ onMounted(() => {
 })
 
 const d = computed(() => socio.datos || {})
+
+// --- Mis redes (para los Reels) ---
+// Se guardan UNA vez aquí y se reutilizan en todos los videos del miembro.
+// Guardamos el USUARIO (no el link completo); el link se arma al mostrarlo.
+const ig = ref('')
+const tiktok = ref('')
+const mostrarRedes = ref(true)
+const redesTrabajando = ref(false)
+const redesMsg = ref('')
+
+watch(
+  d,
+  (val) => {
+    ig.value = val.ig || ''
+    tiktok.value = val.tiktok || ''
+    mostrarRedes.value = val.mostrarRedes !== false
+  },
+  { immediate: true },
+)
+
+// Acepta que peguen el link completo o con @, y deja solo el usuario.
+function limpiarUsuario(v) {
+  let s = String(v || '').trim()
+  const m = s.match(/(?:instagram\.com|tiktok\.com)\/@?([^/?#\s]+)/i)
+  if (m) s = m[1]
+  return s.replace(/^@+/, '').replace(/\s+/g, '').slice(0, 40)
+}
+
+async function guardarRedes() {
+  if (redesTrabajando.value) return
+  if (!socio.gymId || !socio.socioId) return
+  redesTrabajando.value = true
+  redesMsg.value = ''
+  try {
+    ig.value = limpiarUsuario(ig.value)
+    tiktok.value = limpiarUsuario(tiktok.value)
+    await updateDoc(doc(db, 'gyms', socio.gymId, 'socios', socio.socioId), {
+      ig: ig.value,
+      tiktok: tiktok.value,
+      mostrarRedes: mostrarRedes.value,
+    })
+    redesMsg.value = 'Guardado'
+    setTimeout(() => {
+      redesMsg.value = ''
+    }, 2500)
+  } catch {
+    redesMsg.value = 'No se pudo guardar. Inténtalo de nuevo.'
+  } finally {
+    redesTrabajando.value = false
+  }
+}
 const membresia = computed(() => interpretarMembresia(socio.estadoMembresia))
 const inicial = computed(() => (socio.nombreSocio || auth.correo || '?').trim().charAt(0).toUpperCase())
 const tieneDeuda = computed(() => Number(d.value.deudaActual) > 0)
@@ -199,6 +252,74 @@ async function cerrarSesion() {
           Tu navegador no admite notificaciones push.
         </p>
         <p v-if="notifMsg" class="notif__msg">{{ notifMsg }}</p>
+      </section>
+
+      <!-- Mis redes (para los Reels) -->
+      <section class="card bloque">
+        <h2 class="bloque__title">Mis redes</h2>
+        <p class="redes__intro">
+          Aparecerán como íconos en los videos que subas a Reels. Escribe solo tu usuario.
+        </p>
+
+        <label class="redes__campo">
+          <span class="redes__ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="3" y="3" width="18" height="18" rx="5" />
+              <circle cx="12" cy="12" r="4" />
+              <circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" stroke="none" />
+            </svg>
+          </span>
+          <span class="redes__at">@</span>
+          <input
+            v-model="ig"
+            type="text"
+            class="redes__input"
+            placeholder="usuario de Instagram"
+            autocapitalize="off"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </label>
+
+        <label class="redes__campo">
+          <span class="redes__ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16.5 3c.3 2.1 1.7 3.7 3.8 4v2.4c-1.4.1-2.7-.3-3.8-1v6.1c0 3.4-2.7 5.8-5.9 5.4-2.6-.3-4.5-2.5-4.4-5.1.1-2.7 2.5-4.8 5.2-4.6.3 0 .5.1.8.1v2.6c-.3-.1-.6-.2-.9-.2-1.2-.1-2.3.8-2.4 2-.1 1.2.8 2.2 2 2.3 1.3.1 2.4-.9 2.4-2.2V3h2.6z" />
+            </svg>
+          </span>
+          <span class="redes__at">@</span>
+          <input
+            v-model="tiktok"
+            type="text"
+            class="redes__input"
+            placeholder="usuario de TikTok"
+            autocapitalize="off"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </label>
+
+        <div class="notif redes__toggle">
+          <div class="notif__info">
+            <span class="notif__label">Mostrar mis redes</span>
+            <span class="notif__sub">En los videos que subo</span>
+          </div>
+          <button
+            class="switch"
+            :class="{ 'switch--on': mostrarRedes }"
+            role="switch"
+            :aria-checked="mostrarRedes ? 'true' : 'false'"
+            aria-label="Mostrar mis redes"
+            @click="mostrarRedes = !mostrarRedes"
+          >
+            <span class="switch__dot"></span>
+          </button>
+        </div>
+
+        <button class="redes__guardar" :disabled="redesTrabajando" @click="guardarRedes">
+          {{ redesTrabajando ? 'Guardando…' : 'Guardar' }}
+        </button>
+        <p v-if="redesMsg" class="notif__msg">{{ redesMsg }}</p>
       </section>
     </template>
 
@@ -342,4 +463,54 @@ async function cerrarSesion() {
 }
 .switch--on .switch__dot { transform: translateY(-50%) translateX(20px); }
 .switch:not(:disabled):active .switch__dot { width: 27px; }
+
+/* Mis redes (para los Reels) */
+.redes__intro {
+  color: var(--text-dim);
+  font-size: 0.86rem;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+.redes__campo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 9px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+}
+.redes__ic {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+.redes__ic svg { width: 20px; height: 20px; }
+.redes__at { color: var(--text-faint); font-weight: 600; }
+.redes__input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+.redes__input::placeholder { color: var(--text-faint); }
+.redes__toggle { margin-top: 4px; }
+.redes__guardar {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--grad-firma);
+  box-shadow: 0 6px 16px var(--accent-glow);
+  transition: opacity 0.18s ease, transform 0.12s ease;
+}
+.redes__guardar:disabled { opacity: 0.6; }
+.redes__guardar:not(:disabled):active { transform: scale(0.99); }
 </style>
