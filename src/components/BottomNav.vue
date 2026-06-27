@@ -1,6 +1,6 @@
 <script setup>
 // Barra de navegación inferior (móvil) — estilo BioNova.
-// 5 accesos: Inicio · Videos · Check-in (FAB central) · Foro · Menú.
+// 5 accesos: Inicio · Reels · Check-in (FAB central) · Foro · Menú.
 // El botón "Menú" abre el menú lateral (drawer). La lógica de rutas no cambia.
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
@@ -35,21 +35,21 @@ const { hayNuevos: hayNuevosForo } = useAvisosForo()
         <span class="nav-item__label">Inicio</span>
       </router-link>
 
-      <!-- Videos -->
+      <!-- Reels -->
       <router-link
-        to="/videos"
+        to="/reels"
         class="nav-item"
-        :class="{ 'nav-item--active': activo === 'videos' }"
+        :class="{ 'nav-item--active': activo === 'reels' }"
       >
         <span class="nav-item__dot" aria-hidden="true"></span>
         <span class="nav-item__icon">
           <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M10.3 8.7v6.6l5.4-3.3z" />
+            <rect x="4" y="3" width="16" height="18" rx="3" />
+            <path d="M10 8.5v7l5-3.5z" />
           </svg>
         </span>
-        <span class="nav-item__label">Videos</span>
+        <span class="nav-item__label">Reels</span>
       </router-link>
 
       <!-- Check-in (FAB central elevado) -->
