@@ -123,6 +123,7 @@ onMounted(() => {
   padding: 16px 14px calc(var(--nav-h, 64px) + 24px);
   max-width: 720px;
   margin: 0 auto;
+  overflow-x: clip;
 }
 .reels__top { margin-bottom: 12px; }
 .reels__title {
@@ -151,7 +152,14 @@ onMounted(() => {
   cursor: pointer;
 }
 .reels__aviso-ic { color: var(--accent); display: flex; flex-shrink: 0; }
-.reels__aviso-txt { flex: 1; font-size: 0.85rem; color: var(--text); line-height: 1.35; }
+.reels__aviso-txt {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.35;
+}
 .reels__aviso-go { color: var(--text-dim); display: flex; flex-shrink: 0; }
 
 /* Segmented: Todos / Mi club */
@@ -165,6 +173,7 @@ onMounted(() => {
 }
 .reels__seg-btn {
   flex: 1;
+  min-width: 0;
   padding: 9px 12px;
   border-radius: var(--r-pill, 999px);
   font-weight: 700;
