@@ -82,6 +82,12 @@ const routes = [
     component: () => import('../views/ForoView.vue'),
     meta: { requiereSocio: true },
   },
+  {
+    path: '/reels',
+    name: 'reels',
+    component: () => import('../views/ReelsView.vue'),
+    meta: { requiereSocio: true },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/inicio' },
 ]
 
