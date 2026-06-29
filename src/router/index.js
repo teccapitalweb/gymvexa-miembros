@@ -88,6 +88,12 @@ const routes = [
     component: () => import('../views/ReelsView.vue'),
     meta: { requiereSocio: true },
   },
+  {
+    path: '/guardados',
+    name: 'guardados',
+    component: () => import('../views/GuardadosView.vue'),
+    meta: { requiereSocio: true },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/inicio' },
 ]
 
