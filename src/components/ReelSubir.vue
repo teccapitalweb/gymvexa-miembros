@@ -93,74 +93,101 @@ async function onElegir(e) {
 }
 
 // Carga el video, valida la duración y captura el primer fotograma como portada.
+// iOS (Safari) NO dispara "seeked" de forma fiable al fijar currentTime; por eso
+// el salto se hace cuando YA hay datos del fotograma (loadeddata) y, si "seeked"
+// no llega a tiempo, se captura igual el fotograma que haya (salvavidas del seek).
+// Así no se queda colgado en "Procesando video…" en el teléfono.
 function prepararVideo(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
     video.preload = 'auto'
     video.muted = true
+    video.setAttribute('muted', '')
     video.playsInline = true
+    video.setAttribute('playsinline', '')
     video.src = url
 
-    let listoMeta = false
+    let done = false
+    let seekTimer = null
+    let salvavidas = null
 
-    const fallar = (msg) => {
-      URL.revokeObjectURL(url)
-      reject(new Error(msg))
+    const finalizar = (ok, msg) => {
+      if (done) return
+      done = true
+      if (seekTimer) clearTimeout(seekTimer)
+      if (salvavidas) clearTimeout(salvavidas)
+      if (ok) {
+        resolve()
+      } else {
+        URL.revokeObjectURL(url)
+        reject(new Error(msg))
+      }
+    }
+
+    const capturar = () => {
+      if (done) return
+      const w = video.videoWidth
+      const h = video.videoHeight
+      // Aún sin imagen: esperamos otro evento o el salvavidas del seek.
+      if (!w || !h) return
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        canvas.getContext('2d').drawImage(video, 0, 0, w, h)
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return finalizar(false, 'No se pudo generar la portada.')
+            portadaBlob.value = blob
+            portadaPreviewUrl.value = URL.createObjectURL(blob)
+            videoPreviewUrl.value = url // se conserva para previsualizar
+            finalizar(true)
+          },
+          'image/jpeg',
+          0.8,
+        )
+      } catch {
+        finalizar(false, 'No se pudo generar la portada.')
+      }
     }
 
     video.onloadedmetadata = () => {
-      listoMeta = true
       if (video.duration && video.duration > MAX_SEG + 0.5) {
-        return fallar(
+        return finalizar(
+          false,
           `El video dura ${Math.round(video.duration)} s. El máximo es ${MAX_SEG} s.`,
         )
       }
       duracion.value = video.duration || 0
-      // Salta a un instante temprano para tomar la portada del primer fotograma.
+    }
+
+    // Cuando ya hay datos del primer fotograma, saltamos a un instante temprano
+    // (evita la carátula en negro) y armamos el salvavidas del seek para iOS.
+    video.onloadeddata = () => {
       try {
         video.currentTime = Math.min(0.1, (video.duration || 1) / 2)
       } catch {
-        capturar(video, url, resolve, fallar)
+        capturar()
+        return
       }
+      // iOS: si "seeked" no llega en 1.8 s, capturamos el fotograma actual.
+      seekTimer = setTimeout(capturar, 1800)
     }
 
-    video.onseeked = () => capturar(video, url, resolve, fallar)
+    video.onseeked = capturar
+    video.onerror = () => finalizar(false, 'No se pudo procesar el video.')
 
-    video.onerror = () => fallar('No se pudo procesar el video.')
-
-    // Salvavidas: si en 12s no cargó metadata, abortamos.
-    setTimeout(() => {
-      if (!listoMeta) fallar('El video tardó demasiado en cargar.')
-    }, 12000)
-  })
-}
-
-function capturar(video, url, resolve, fallar) {
-  try {
-    const w = video.videoWidth
-    const h = video.videoHeight
-    if (!w || !h) return fallar('El video no tiene imagen válida.')
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext('2d')
-    ctx.drawImage(video, 0, 0, w, h)
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) return fallar('No se pudo generar la portada.')
-        portadaBlob.value = blob
-        portadaPreviewUrl.value = URL.createObjectURL(blob)
-        // Conservamos el objectURL del video para previsualizarlo en el modal.
-        videoPreviewUrl.value = url
-        resolve()
-      },
-      'image/jpeg',
-      0.8,
+    // Salvavidas general: si en 15 s no se logró nada, abortamos con aviso.
+    salvavidas = setTimeout(
+      () =>
+        finalizar(
+          false,
+          'No se pudo procesar el video en este dispositivo. Prueba con otro.',
+        ),
+      15000,
     )
-  } catch {
-    fallar('No se pudo generar la portada.')
-  }
+  })
 }
 
 async function publicar() {
