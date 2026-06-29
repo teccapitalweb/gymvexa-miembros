@@ -112,6 +112,10 @@ html,
 body,
 #app {
   height: 100%;
+  /* Quita el rebote/scroll elastico del WebView/PWA (overscroll bounce/glow) en
+     el borde, SIN afectar el scroll normal de listas/feeds (ej. Reels): solo evita
+     el efecto elastico y el encadenamiento de scroll en el limite. */
+  overscroll-behavior: none;
 }
 
 body {
