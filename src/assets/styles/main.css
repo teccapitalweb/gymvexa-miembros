@@ -109,13 +109,12 @@
 }
 
 html,
-body,
-#app {
+body {
   height: 100%;
-  /* Quita el rebote/scroll elastico del WebView/PWA (overscroll bounce/glow) en
-     el borde, SIN afectar el scroll normal de listas/feeds (ej. Reels): solo evita
-     el efecto elastico y el encadenamiento de scroll en el limite. */
-  overscroll-behavior: none;
+  /* El documento NO scrollea: el scroll vive en .app-scroll. Así la barra del
+     navegador móvil no se contrae/expande y la barra inferior deja de saltar. */
+  overflow: hidden;
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -170,6 +169,21 @@ body::after {
   flex-direction: column;
   position: relative;
   z-index: 1;
+  height: 100vh;   /* respaldo para navegadores sin dvh */
+  height: 100dvh;  /* se ajusta a la barra del navegador móvil */
+  overflow: hidden;
+}
+
+/* El único contenedor que scrollea. TopBar (sticky) y el contenido viven aquí;
+   la barra inferior y los overlays quedan fuera, fijos al viewport. */
+.app-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 button {
@@ -215,10 +229,13 @@ svg {
     calc(var(--safe-left) + var(--sp-4));
 }
 
-/* Cuando hay barra inferior, reservamos su espacio (incl. el FAB elevado). */
+/* La barra inferior ya NO es fixed (es parte del layout, va debajo del scroll),
+   así que el contenido ya no queda tapado por ella: basta un respiro al final.
+   El safe-area inferior lo maneja la propia barra; el extra deja aire para el
+   FAB central elevado. */
 .screen--with-nav {
   padding-top: var(--sp-4);
-  padding-bottom: calc(var(--safe-bottom) + var(--nav-h) + 28px);
+  padding-bottom: 28px;
 }
 
 /* Encabezado estándar de las pantallas internas (título + subtítulo). */
