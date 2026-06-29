@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db, auth } from '../firebase'
 import ReelVisor from '../components/ReelVisor.vue'
+import { categoriaReelLabel } from '../data/categoriasReels'
 
 const router = useRouter()
 const cargando = ref(true)
@@ -95,7 +96,7 @@ onMounted(cargar)
             <span v-if="r.esStaff" class="gd-badge">Staff</span>
           </div>
           <div class="gd-pie">
-            <span class="gd-gym">{{ r.gymNombre }}</span>
+            <span class="gd-gym">{{ r.esStaff ? categoriaReelLabel(r.categoria) : r.gymNombre }}</span>
             <span class="gd-redes">
               <a v-if="r.ig" :href="igLink(r.ig)" target="_blank" rel="noopener" class="gd-soc" aria-label="Instagram" @click.stop>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
