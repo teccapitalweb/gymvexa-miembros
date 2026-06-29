@@ -144,23 +144,21 @@ function tiempoRel(ts) {
   return `hace ${Math.floor(seg / 86400)} d`
 }
 
-// ---------- Bloqueo de scroll del fondo (robusto en iOS) ----------
-let scrollYGuardado = 0
+// ---------- Bloqueo de scroll del fondo ----------
+// El scroll de la app vive en .app-scroll (ver App.vue / main.css). Mientras el
+// visor está abierto lo congelamos ahí; al cerrar se restaura sin perder la
+// posición (overflow:hidden no reinicia el scroll). Si por algo no existiera ese
+// contenedor, caemos al body como respaldo.
+let contScroll = null
 function bloquearScroll() {
-  scrollYGuardado = window.scrollY || 0
-  document.body.style.position = 'fixed'
-  document.body.style.top = `-${scrollYGuardado}px`
-  document.body.style.left = '0'
-  document.body.style.right = '0'
-  document.body.style.width = '100%'
+  contScroll = document.querySelector('.app-scroll')
+  if (contScroll) contScroll.style.overflow = 'hidden'
+  else document.body.style.overflow = 'hidden'
 }
 function liberarScroll() {
-  document.body.style.position = ''
-  document.body.style.top = ''
-  document.body.style.left = ''
-  document.body.style.right = ''
-  document.body.style.width = ''
-  window.scrollTo(0, scrollYGuardado)
+  if (contScroll) contScroll.style.overflow = ''
+  else document.body.style.overflow = ''
+  contScroll = null
 }
 
 onMounted(() => {
@@ -266,7 +264,7 @@ onUnmounted(() => {
         <span class="vz-nombre">{{ reelVivo.autorNombre }}</span>
         <span v-if="reelVivo.esStaff" class="vz-staff">Staff</span>
       </div>
-      <span class="vz-gym">{{ reelVivo.gymNombre }} · {{ categoriaReelLabel(reelVivo.categoria) }}</span>
+      <span class="vz-gym"><template v-if="!reelVivo.esStaff">{{ reelVivo.gymNombre }} · </template>{{ categoriaReelLabel(reelVivo.categoria) }}</span>
       <p v-if="reelVivo.descripcion" class="vz-desc">{{ reelVivo.descripcion }}</p>
       <div v-if="reelVivo.ig || reelVivo.tiktok" class="vz-redes">
         <a v-if="reelVivo.ig" :href="igLink(reelVivo.ig)" target="_blank" rel="noopener" class="vz-soc" @click.stop>
