@@ -28,12 +28,17 @@ watch(
 </script>
 
 <template>
-  <TopBar v-if="mostrarNav" />
-  <router-view v-slot="{ Component, route }">
-    <transition name="page" mode="out-in">
-      <component :is="Component" :key="route.name" />
-    </transition>
-  </router-view>
+  <!-- Contenedor de scroll: TopBar + contenido viven aquí y este div toma el alto
+       disponible (flex:1). La barra inferior queda FUERA, como hermano, así se
+       ancla al fondo por el layout y nunca flota arriba ni salta. -->
+  <div class="app-scroll">
+    <TopBar v-if="mostrarNav" />
+    <router-view v-slot="{ Component, route }">
+      <transition name="page" mode="out-in">
+        <component :is="Component" :key="route.name" />
+      </transition>
+    </router-view>
+  </div>
   <BottomNav v-if="mostrarNav" />
   <MenuDrawer v-if="mostrarNav" />
   <!-- Soft-ask de notificaciones: solo en zona logueada; él decide cuándo salir. -->
