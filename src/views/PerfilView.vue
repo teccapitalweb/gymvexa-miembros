@@ -321,6 +321,25 @@ async function cerrarSesion() {
         </button>
         <p v-if="redesMsg" class="notif__msg">{{ redesMsg }}</p>
       </section>
+
+      <section class="card bloque">
+        <button class="perfil-link" @click="router.push('/guardados')">
+          <span class="perfil-link__ic">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z" />
+            </svg>
+          </span>
+          <span class="perfil-link__txt">
+            <span class="perfil-link__t">Videos guardados</span>
+            <span class="perfil-link__d">Los reels que marcaste con la estrella</span>
+          </span>
+          <span class="perfil-link__arrow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+          </span>
+        </button>
+      </section>
     </template>
 
     <p v-else-if="socio.noVinculado" class="perfil__aviso">
@@ -513,4 +532,17 @@ async function cerrarSesion() {
 }
 .redes__guardar:disabled { opacity: 0.6; }
 .redes__guardar:not(:disabled):active { transform: scale(0.99); }
+
+/* Enlace a Videos guardados */
+.perfil-link { display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; }
+.perfil-link:active { opacity: 0.7; }
+.perfil-link__ic {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent); background: var(--accent-soft);
+}
+.perfil-link__txt { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.perfil-link__t { font-size: 0.98rem; font-weight: 700; color: var(--text); }
+.perfil-link__d { font-size: 0.8rem; color: var(--text-dim); }
+.perfil-link__arrow { color: var(--text-faint); flex-shrink: 0; display: flex; }
 </style>
