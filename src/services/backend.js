@@ -31,6 +31,10 @@ const ENDPOINT_FORO_NOTIFICAR = `${BACKEND_URL}/api/foro/notificar`
 // app NO puede leer directo) y devuelve el resumen ya calculado (racha semanal,
 // visitas, días entrenados, promedio…). El cliente solo lo pinta.
 const ENDPOINT_PROGRESO = `${BACKEND_URL}/api/socios/progreso`
+// Reels: el cliente sube el video + la portada a Storage y aquí le pide al
+// backend que CREE el registro con datos de confianza (nombre del gym, nombre
+// real del autor y su rol). Las reglas no dejan que el cliente cree reels.
+const ENDPOINT_REELS_CREAR = `${BACKEND_URL}/api/reels/crear`
 
 // Construye un Error con status + mensaje legible (para que la UI ramifique).
 function errorBackend(mensaje, { status = null, data = null, red = false } = {}) {
@@ -611,4 +615,55 @@ export async function obtenerProgreso(opciones = {}) {
     status: res.status,
     data,
   })
+}
+
+/**
+ * Crea el registro de un Reel ya subido a Storage.
+ * El cliente sube video + portada y pasa SOLO las URLs/paths + categoría + texto;
+ * el backend resuelve nombre del gym, autor y rol (datos no falsificables).
+ * @param {{categoria:string, descripcion?:string, videoUrl:string, videoPath:string,
+ *          portadaUrl?:string, portadaPath?:string}} datos
+ * @returns {Promise<{ ok: true, reelId: string }>}
+ */
+export async function crearReel(datos) {
+  const user = auth.currentUser
+  if (!user) throw errorBackend('Inicia sesión para publicar.', { status: 401 })
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    throw errorBackend('No se pudo validar tu sesión.', { status: 401 })
+  }
+
+  let res
+  try {
+    res = await fetch(ENDPOINT_REELS_CREAR, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(datos),
+    })
+  } catch {
+    throw errorBackend('Sin conexión. Revisa tu internet e inténtalo de nuevo.', {
+      red: true,
+    })
+  }
+
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+
+  if (!res.ok || !data?.ok) {
+    throw errorBackend(data?.error || mensajePorStatus(res.status), {
+      status: res.status,
+      data,
+    })
+  }
+  return data
 }
