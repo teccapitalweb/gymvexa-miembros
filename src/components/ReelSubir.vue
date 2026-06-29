@@ -93,30 +93,41 @@ async function onElegir(e) {
 }
 
 // Carga el video, valida la duración y captura el primer fotograma como portada.
-// iOS (Safari) NO dispara "seeked" de forma fiable al fijar currentTime; por eso
-// el salto se hace cuando YA hay datos del fotograma (loadeddata) y, si "seeked"
-// no llega a tiempo, se captura igual el fotograma que haya (salvavidas del seek).
-// Así no se queda colgado en "Procesando video…" en el teléfono.
+// CLAVE iOS (Safari): sólo decodifica un fotograma si el video se está
+// REPRODUCIENDO y el play() se pide dentro del gesto del usuario (al elegir el
+// archivo). Por eso metemos el video al DOM (oculto), lo reproducimos silenciado
+// un instante, capturamos el primer fotograma disponible y pausamos. En
+// PC/Android el play() o el "seek" (plan B) resuelven igual.
 function prepararVideo(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
-    video.preload = 'auto'
     video.muted = true
+    video.defaultMuted = true
     video.setAttribute('muted', '')
     video.playsInline = true
     video.setAttribute('playsinline', '')
+    video.setAttribute('webkit-playsinline', '')
+    video.preload = 'auto'
+    // iOS suele necesitar el elemento dentro del DOM para reproducir/decodificar.
+    video.style.cssText =
+      'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;'
+    document.body.appendChild(video)
     video.src = url
 
     let done = false
-    let seekTimer = null
     let salvavidas = null
 
+    const limpiarVideo = () => {
+      try { video.pause() } catch (e) { /* noop */ }
+      try { video.removeAttribute('src'); video.load() } catch (e) { /* noop */ }
+      try { video.remove() } catch (e) { /* noop */ }
+    }
     const finalizar = (ok, msg) => {
       if (done) return
       done = true
-      if (seekTimer) clearTimeout(seekTimer)
       if (salvavidas) clearTimeout(salvavidas)
+      limpiarVideo()
       if (ok) {
         resolve()
       } else {
@@ -129,27 +140,28 @@ function prepararVideo(file) {
       if (done) return
       const w = video.videoWidth
       const h = video.videoHeight
-      // Aún sin imagen: esperamos otro evento o el salvavidas del seek.
-      if (!w || !h) return
+      if (!w || !h) return // todavía sin imagen; esperamos otro evento
+      let canvas
       try {
-        const canvas = document.createElement('canvas')
+        canvas = document.createElement('canvas')
         canvas.width = w
         canvas.height = h
         canvas.getContext('2d').drawImage(video, 0, 0, w, h)
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) return finalizar(false, 'No se pudo generar la portada.')
-            portadaBlob.value = blob
-            portadaPreviewUrl.value = URL.createObjectURL(blob)
-            videoPreviewUrl.value = url // se conserva para previsualizar
-            finalizar(true)
-          },
-          'image/jpeg',
-          0.8,
-        )
-      } catch {
-        finalizar(false, 'No se pudo generar la portada.')
+      } catch (e) {
+        return // aún no se pudo dibujar; reintenta en el próximo evento
       }
+      canvas.toBlob(
+        (blob) => {
+          if (!blob || done) return // sin blob: reintenta en el próximo evento
+          // Conservamos el objectURL del video para previsualizarlo en el modal.
+          portadaBlob.value = blob
+          portadaPreviewUrl.value = URL.createObjectURL(blob)
+          videoPreviewUrl.value = url
+          finalizar(true)
+        },
+        'image/jpeg',
+        0.8,
+      )
     }
 
     video.onloadedmetadata = () => {
@@ -162,21 +174,24 @@ function prepararVideo(file) {
       duracion.value = video.duration || 0
     }
 
-    // Cuando ya hay datos del primer fotograma, saltamos a un instante temprano
-    // (evita la carátula en negro) y armamos el salvavidas del seek para iOS.
+    // En cuanto el video se reproduce, ya hay un fotograma decodificado (iOS).
+    video.onplaying = () => setTimeout(capturar, 120)
+    video.ontimeupdate = () => {
+      if (video.currentTime > 0) capturar()
+    }
+    video.onseeked = capturar
+    // Plan B (PC/Android): si no se está reproduciendo, saltamos a un instante.
     video.onloadeddata = () => {
-      try {
-        video.currentTime = Math.min(0.1, (video.duration || 1) / 2)
-      } catch {
-        capturar()
-        return
+      if (video.paused && video.currentTime === 0) {
+        try {
+          video.currentTime = Math.min(0.1, (video.duration || 1) / 2)
+        } catch (e) {
+          capturar()
+        }
       }
-      // iOS: si "seeked" no llega en 1.8 s, capturamos el fotograma actual.
-      seekTimer = setTimeout(capturar, 1800)
     }
 
-    video.onseeked = capturar
-    video.onerror = () => finalizar(false, 'No se pudo procesar el video.')
+    video.onerror = () => finalizar(false, 'No se pudo procesar el video. Prueba con otro.')
 
     // Salvavidas general: si en 15 s no se logró nada, abortamos con aviso.
     salvavidas = setTimeout(
@@ -187,6 +202,16 @@ function prepararVideo(file) {
         ),
       15000,
     )
+
+    // CLAVE iOS: reproducir AHORA, dentro del gesto del usuario, para forzar la
+    // decodificación del primer fotograma. Si el navegador lo bloquea, el plan B
+    // (loadeddata → seek) lo intentará igualmente.
+    const intento = video.play()
+    if (intento && typeof intento.catch === 'function') {
+      intento.catch(() => {
+        /* reproducción bloqueada: queda el plan B del seek */
+      })
+    }
   })
 }
 
