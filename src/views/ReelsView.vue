@@ -10,7 +10,7 @@ import { useRouter } from 'vue-router'
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useSocioStore } from '../stores/socio'
-import { CATEGORIAS_REELS } from '../data/categoriasReels'
+import { CATEGORIAS_REELS, categoriaReelLabel } from '../data/categoriasReels'
 import ReelSubir from '../components/ReelSubir.vue'
 import ReelVisor from '../components/ReelVisor.vue'
 
@@ -180,7 +180,7 @@ onUnmounted(() => {
             <span v-if="r.esStaff" class="rl-card__badge">Staff</span>
           </div>
           <div class="rl-card__pie">
-            <span class="rl-card__gym">{{ r.gymNombre }}</span>
+            <span class="rl-card__gym">{{ r.esStaff ? categoriaReelLabel(r.categoria) : r.gymNombre }}</span>
             <span class="rl-card__redes">
               <a v-if="r.ig" :href="igLink(r.ig)" target="_blank" rel="noopener" class="rl-soc" aria-label="Instagram" @click.stop>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
