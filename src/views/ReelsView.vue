@@ -10,8 +10,9 @@ import { useRouter } from 'vue-router'
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useSocioStore } from '../stores/socio'
-import { CATEGORIAS_REELS, categoriaReelLabel } from '../data/categoriasReels'
+import { CATEGORIAS_REELS } from '../data/categoriasReels'
 import ReelSubir from '../components/ReelSubir.vue'
+import ReelVisor from '../components/ReelVisor.vue'
 
 const router = useRouter()
 const socio = useSocioStore()
@@ -234,41 +235,8 @@ onUnmounted(() => {
     <!-- Modal de subida -->
     <ReelSubir v-if="mostrarSubir" @cerrar="mostrarSubir = false" @publicado="onPublicado" />
 
-    <!-- Visor -->
-    <div v-if="reelActivo" class="rl-visor" @click.self="cerrarVisor">
-      <button class="rl-visor__x" aria-label="Cerrar" @click="cerrarVisor">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-      </button>
-      <div class="rl-visor__box">
-        <video :src="reelActivo.videoUrl" class="rl-visor__video" controls autoplay playsinline
-               :poster="reelActivo.portadaUrl"></video>
-        <div class="rl-visor__info">
-          <div class="rl-visor__top">
-            <span class="rl-visor__nombre">{{ reelActivo.autorNombre }}</span>
-            <span v-if="reelActivo.esStaff" class="rl-card__badge">Staff</span>
-            <span class="rl-visor__gym">· {{ reelActivo.gymNombre }}</span>
-          </div>
-          <span class="rl-visor__cat">{{ categoriaReelLabel(reelActivo.categoria) }}</span>
-          <p v-if="reelActivo.descripcion" class="rl-visor__desc">{{ reelActivo.descripcion }}</p>
-          <div class="rl-visor__redes">
-            <a v-if="reelActivo.ig" :href="igLink(reelActivo.ig)" target="_blank" rel="noopener" class="rl-visor__soc">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
-                <rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" />
-                <circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" stroke="none" />
-              </svg>
-              <span>@{{ reelActivo.ig }}</span>
-            </a>
-            <a v-if="reelActivo.tiktok" :href="tiktokLink(reelActivo.tiktok)" target="_blank" rel="noopener" class="rl-visor__soc">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M16.5 3c.3 2.1 1.7 3.7 3.8 4v2.4c-1.4.1-2.7-.3-3.8-1v6.1c0 3.4-2.7 5.8-5.9 5.4-2.6-.3-4.5-2.5-4.4-5.1.1-2.7 2.5-4.8 5.2-4.6.3 0 .5.1.8.1v2.6c-.3-.1-.6-.2-.9-.2-1.2-.1-2.3.8-2.4 2-.1 1.2.8 2.2 2 2.3 1.3.1 2.4-.9 2.4-2.2V3h2.6z" />
-              </svg>
-              <span>@{{ reelActivo.tiktok }}</span>
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Visor del Reel (componente con me gusta, comentarios y guardados) -->
+    <ReelVisor v-if="reelActivo" :reel="reelActivo" @cerrar="cerrarVisor" />
   </main>
 </template>
 
@@ -373,17 +341,5 @@ onUnmounted(() => {
 /* (sin botón flotante: el botón "Subir" vive en la cabecera) */
 
 /* Visor */
-.rl-visor { position: fixed; inset: 0; z-index: 1000; background: rgba(2, 6, 23, 0.92); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; }
-.rl-visor__x { position: absolute; top: 14px; right: 14px; color: #fff; padding: 6px; z-index: 2; }
-.rl-visor__box { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 12px; }
-.rl-visor__video { width: 100%; max-height: 64vh; border-radius: var(--r-md); background: #000; aspect-ratio: 9 / 16; object-fit: contain; }
-.rl-visor__info { display: flex; flex-direction: column; gap: 6px; color: #fff; }
-.rl-visor__top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.rl-visor__nombre { font-weight: 800; font-size: 1rem; }
-.rl-visor__gym { color: rgba(255, 255, 255, 0.7); font-size: 0.9rem; }
-.rl-visor__cat { font-size: 0.78rem; color: rgba(255, 255, 255, 0.6); }
-.rl-visor__desc { font-size: 0.9rem; line-height: 1.4; color: rgba(255, 255, 255, 0.92); }
-.rl-visor__redes { display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
-.rl-visor__soc { display: flex; align-items: center; gap: 6px; color: #fff; background: rgba(255, 255, 255, 0.12); padding: 7px 12px; border-radius: var(--r-pill); font-size: 0.84rem; font-weight: 600; }
-.rl-visor__soc:active { background: rgba(255, 255, 255, 0.22); }
+/* (el visor ahora vive en el componente ReelVisor.vue) */
 </style>
