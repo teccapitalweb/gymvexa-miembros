@@ -173,9 +173,9 @@ function liberarScroll() {
 const vv = (typeof window !== 'undefined' && window.visualViewport) || null
 function ajustarPorTeclado() {
   if (!vv) return
-  const raiz = document.documentElement
-  raiz.style.setProperty('--vz-vv-h', Math.round(vv.height) + 'px')
-  raiz.style.setProperty('--vz-vv-top', Math.round(vv.offsetTop) + 'px')
+  // Alto que el teclado le quita al viewport (incluye su barra de accesorios).
+  const kb = Math.max(0, Math.round(window.innerHeight - vv.height))
+  document.documentElement.style.setProperty('--vz-kb', kb + 'px')
 }
 function escucharTeclado() {
   if (!vv) return
@@ -187,9 +187,7 @@ function dejarTeclado() {
   if (!vv) return
   vv.removeEventListener('resize', ajustarPorTeclado)
   vv.removeEventListener('scroll', ajustarPorTeclado)
-  const raiz = document.documentElement
-  raiz.style.removeProperty('--vz-vv-h')
-  raiz.style.removeProperty('--vz-vv-top')
+  document.documentElement.style.removeProperty('--vz-kb')
 }
 
 onMounted(() => {
@@ -454,12 +452,12 @@ onUnmounted(() => {
 
 /* Panel comentarios */
 .vz-coment {
-  position: fixed; left: 0; right: 0;
-  /* Por defecto cubre toda la pantalla; al abrir el teclado, el JS fija el alto y
-     el offset al área VISIBLE (visualViewport), así la hoja queda arriba del
-     teclado y no se sale dejando un hueco blanco. */
-  top: var(--vz-vv-top, 0px);
-  height: var(--vz-vv-h, 100%);
+  position: fixed; inset: 0;
+  /* El teclado de iOS no encoge el viewport ni cambia vh/dvh. Reservamos su alto
+     abajo (padding-bottom) y, como el panel se ancla con align-items:flex-end,
+     la hoja sube y el input queda PEGADO arriba del teclado, sin hueco ni espacio
+     sobrante. Cuando no hay teclado, --vz-kb = 0 y todo queda como siempre. */
+  padding-bottom: var(--vz-kb, 0px);
   z-index: 1100; background: rgba(2, 6, 23, 0.55);
   display: flex; align-items: flex-end; justify-content: center;
 }
