@@ -39,6 +39,11 @@ const ENDPOINT_REELS_CREAR = `${BACKEND_URL}/api/reels/crear`
 // en la ficha del socio y los devuelve para mostrarlos con su cuenta regresiva.
 // El socio NO escribe su ficha directo; todo lo sensible pasa por el backend.
 const ENDPOINT_CODIGO_PAGO = `${BACKEND_URL}/api/socios/codigo-pago`
+// Reels: avisar al autor que reaccionaron/comentaron (notificación agrupada) y
+// borrar un reel propio (doc + comentarios + video/portada de Storage). Las
+// notificaciones las crea solo el backend; el borrado verifica que seas el autor.
+const ENDPOINT_REELS_NOTIFICAR = `${BACKEND_URL}/api/reels/notificar`
+const ENDPOINT_REELS_ELIMINAR = `${BACKEND_URL}/api/reels/eliminar`
 
 // Construye un Error con status + mensaje legible (para que la UI ramifique).
 function errorBackend(mensaje, { status = null, data = null, red = false } = {}) {
@@ -742,4 +747,99 @@ export async function crearReel(datos) {
     })
   }
   return data
+}
+
+/**
+ * Avisa al autor de un reel que reaccionaste o comentaste. El backend agrupa los
+ * avisos por reel y nunca te notifica a ti mismo. NO es crítico: si falla, la
+ * reacción/comentario igual quedó guardado, por eso nunca lanza.
+ * @param {{ reelId: string, tipo: 'reaccion'|'comentario' }} datos
+ * @returns {Promise<{ ok: boolean, notificado?: boolean }>}
+ */
+export async function notificarReel({ reelId, tipo }) {
+  const user = auth.currentUser
+  if (!user) return { ok: false }
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    return { ok: false }
+  }
+
+  try {
+    const res = await fetch(ENDPOINT_REELS_NOTIFICAR, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ reelId, tipo }),
+    })
+    let data = null
+    try {
+      data = await res.json()
+    } catch {
+      data = null
+    }
+    return res.ok && data?.ok ? data : { ok: false }
+  } catch {
+    return { ok: false }
+  }
+}
+
+/**
+ * Borra un reel PROPIO (doc + comentarios + video/portada de Storage). El backend
+ * verifica que seas el autor por tu uid; nadie puede borrar reels ajenos.
+ * @param {string} reelId
+ * @returns {Promise<{ ok: true, borrado: true }>}
+ * @throws {Error} con `.status` y `.message` legible si falla.
+ */
+export async function eliminarReel(reelId) {
+  const user = auth.currentUser
+  if (!user) {
+    throw errorBackend('No hay una sesión activa. Vuelve a iniciar sesión.', {
+      status: 401,
+    })
+  }
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    throw errorBackend('No pudimos validar tu sesión. Inténtalo de nuevo.', {
+      status: 401,
+    })
+  }
+
+  let res
+  try {
+    res = await fetch(ENDPOINT_REELS_ELIMINAR, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ reelId }),
+    })
+  } catch {
+    throw errorBackend(
+      'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+      { red: true },
+    )
+  }
+
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+
+  if (res.ok && data?.ok) return data
+
+  throw errorBackend(
+    data?.error || data?.mensaje || 'No se pudo eliminar el reel. Inténtalo de nuevo.',
+    { status: res.status, data },
+  )
 }
