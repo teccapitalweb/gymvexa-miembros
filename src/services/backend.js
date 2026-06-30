@@ -44,6 +44,9 @@ const ENDPOINT_CODIGO_PAGO = `${BACKEND_URL}/api/socios/codigo-pago`
 // notificaciones las crea solo el backend; el borrado verifica que seas el autor.
 const ENDPOINT_REELS_NOTIFICAR = `${BACKEND_URL}/api/reels/notificar`
 const ENDPOINT_REELS_ELIMINAR = `${BACKEND_URL}/api/reels/eliminar`
+// Contar una reproducción: va por el backend porque las reglas de /reels no
+// dejan al cliente escribir el campo "vistas" (sí likes/guardados, pero no este).
+const ENDPOINT_REELS_VISTA = `${BACKEND_URL}/api/reels/vista`
 
 // Construye un Error con status + mensaje legible (para que la UI ramifique).
 function errorBackend(mensaje, { status = null, data = null, red = false } = {}) {
@@ -842,4 +845,37 @@ export async function eliminarReel(reelId) {
     data?.error || data?.mensaje || 'No se pudo eliminar el reel. Inténtalo de nuevo.',
     { status: res.status, data },
   )
+}
+
+/**
+ * Suma una reproducción a un reel. Va por el backend (las reglas no dejan al
+ * cliente tocar "vistas"). NO es crítico: si falla, simplemente no se contó, por
+ * eso nunca lanza. Devuelve { ok } para que el visor pueda reintentar al reabrir.
+ * @param {string} reelId
+ * @returns {Promise<{ ok: boolean }>}
+ */
+export async function sumarVistaReel(reelId) {
+  const user = auth.currentUser
+  if (!user) return { ok: false }
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    return { ok: false }
+  }
+
+  try {
+    const res = await fetch(ENDPOINT_REELS_VISTA, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ reelId }),
+    })
+    return res.ok ? { ok: true } : { ok: false }
+  } catch {
+    return { ok: false }
+  }
 }
