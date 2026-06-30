@@ -233,13 +233,12 @@ svg {
     calc(var(--safe-left) + var(--sp-4));
 }
 
-/* La barra inferior ya NO es fixed (es parte del layout, va debajo del scroll),
-   así que el contenido ya no queda tapado por ella: basta un respiro al final.
-   El safe-area inferior lo maneja la propia barra; el extra deja aire para el
-   FAB central elevado. */
+/* La barra inferior es position:fixed (flota sobre el contenido y se ancla al
+   borde real del viewport), así que el contenido necesita despejar su alto + el
+   safe-area para que lo último no quede tapado por la barra ni por el FAB. */
 .screen--with-nav {
   padding-top: var(--sp-4);
-  padding-bottom: 28px;
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
 }
 
 /* Encabezado estándar de las pantallas internas (título + subtítulo). */
