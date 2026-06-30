@@ -6,15 +6,17 @@
 // Cabecera con jerarquía + botón "Subir" arriba. El recordatorio de redes NO es
 // un bloque fijo: es un aviso flotante que aparece si faltan IG/TikTok y se va solo.
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore'
+import { useRouter, useRoute } from 'vue-router'
+import { collection, query, orderBy, limit, onSnapshot, doc, getDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useSocioStore } from '../stores/socio'
 import { CATEGORIAS_REELS, categoriaReelLabel } from '../data/categoriasReels'
+import { eliminarReel } from '../services/backend'
 import ReelSubir from '../components/ReelSubir.vue'
 import ReelVisor from '../components/ReelVisor.vue'
 
 const router = useRouter()
+const route = useRoute()
 const socio = useSocioStore()
 
 const vista = ref('todos') // 'todos' | 'club'
@@ -102,6 +104,58 @@ function abrirVisor(r) {
 function cerrarVisor() {
   reelActivo.value = null
 }
+
+// ¿Este reel es mío? (para mostrar la basurita en su tarjeta).
+function esMioReel(r) {
+  return !!socio.socioId && r?.autorSocioId === socio.socioId
+}
+
+// ---------- Borrar reel propio (desde el feed) ----------
+const reelABorrar = ref(null)
+const borrando = ref(false)
+const errorBorrado = ref('')
+
+function pedirBorrar(r) {
+  errorBorrado.value = ''
+  reelABorrar.value = r
+}
+function cancelarBorrar() {
+  if (borrando.value) return
+  reelABorrar.value = null
+}
+async function confirmarBorrar() {
+  if (borrando.value || !reelABorrar.value) return
+  borrando.value = true
+  errorBorrado.value = ''
+  try {
+    await eliminarReel(reelABorrar.value.id)
+    reelABorrar.value = null
+    // El feed se actualiza solo (onSnapshot quita la tarjeta).
+  } catch (e) {
+    errorBorrado.value = e?.message || 'No se pudo eliminar. Inténtalo de nuevo.'
+  } finally {
+    borrando.value = false
+  }
+}
+
+// ---------- Abrir un reel directo desde una notificación (?reel=ID) ----------
+let reelDeepLinkHecho = false
+async function abrirDesdeRuta() {
+  const id = route.query.reel
+  if (!id || reelDeepLinkHecho) return
+  let r = reels.value.find((x) => x.id === id)
+  if (!r) {
+    try {
+      const snap = await getDoc(doc(db, 'reels', String(id)))
+      if (snap.exists()) r = { id: snap.id, ...snap.data() }
+    } catch { /* noop */ }
+  }
+  if (r) {
+    reelDeepLinkHecho = true
+    abrirVisor(r)
+  }
+}
+watch(reels, abrirDesdeRuta)
 function onPublicado() {
   mostrarSubir.value = false
   vista.value = 'todos'
@@ -111,6 +165,7 @@ function onPublicado() {
 onMounted(() => {
   if (!socio.estaVinculado && !socio.resuelto) socio.vincularSocio()
   suscribir()
+  abrirDesdeRuta()
 })
 onUnmounted(() => {
   if (unsub) unsub()
@@ -172,6 +227,28 @@ onUnmounted(() => {
               <path d="M10 8.5v7l5-3.5z" fill="#fff" />
             </svg>
           </span>
+          <!-- Vistas (reproducciones) -->
+          <span class="rl-card__vistas">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+            </svg>
+            {{ r.vistas || 0 }}
+          </span>
+          <!-- Borrar (solo si el reel es mío) -->
+          <button
+            v-if="esMioReel(r)"
+            class="rl-card__del"
+            type="button"
+            aria-label="Eliminar reel"
+            @click.stop="pedirBorrar(r)"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+          </button>
         </div>
         <div class="rl-card__info">
           <p v-if="r.descripcion" class="rl-card__desc">{{ r.descripcion }}</p>
@@ -237,6 +314,35 @@ onUnmounted(() => {
 
     <!-- Visor del Reel (componente con me gusta, comentarios y guardados) -->
     <ReelVisor v-if="reelActivo" :reel="reelActivo" @cerrar="cerrarVisor" />
+
+    <!-- Confirmar borrado de un reel propio (desde el feed) -->
+    <transition name="rl-fade">
+      <div v-if="reelABorrar" class="rl-confirm" @click.self="cancelarBorrar">
+        <div class="rl-confirm__card">
+          <p class="rl-confirm__titulo">¿Eliminar este reel?</p>
+          <p class="rl-confirm__texto">
+            Se borrará el video y sus comentarios. No se puede deshacer.
+          </p>
+          <p v-if="errorBorrado" class="rl-confirm__error">{{ errorBorrado }}</p>
+          <div class="rl-confirm__btns">
+            <button
+              class="rl-confirm__btn rl-confirm__btn--cancel"
+              :disabled="borrando"
+              @click="cancelarBorrar"
+            >
+              Cancelar
+            </button>
+            <button
+              class="rl-confirm__btn rl-confirm__btn--del"
+              :disabled="borrando"
+              @click="confirmarBorrar"
+            >
+              {{ borrando ? 'Eliminando…' : 'Eliminar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </main>
 </template>
 
@@ -294,6 +400,52 @@ onUnmounted(() => {
 .rl-card__cover { position: relative; width: 100%; aspect-ratio: 9 / 16; background: var(--surface-2); }
 .rl-card__img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .rl-card__play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.rl-card__vistas {
+  position: absolute; left: 7px; bottom: 7px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 7px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5); color: #fff;
+  font-size: 0.72rem; font-weight: 700; line-height: 1;
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+}
+.rl-card__del {
+  position: absolute; top: 7px; right: 7px;
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5); color: #fff;
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.rl-card__del:active { transform: scale(0.9); background: rgba(239, 68, 68, 0.85); }
+
+/* Confirmación de borrado */
+.rl-confirm {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+}
+.rl-confirm__card {
+  width: 100%; max-width: 320px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border-soft); border-radius: var(--r-md);
+  padding: 20px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+.rl-confirm__titulo { margin: 0 0 6px; font-size: 1.05rem; font-weight: 800; color: var(--text); }
+.rl-confirm__texto { margin: 0; font-size: 0.9rem; line-height: 1.45; color: var(--text-dim); }
+.rl-confirm__error { margin: 10px 0 0; font-size: 0.84rem; color: var(--danger, #ef4444); }
+.rl-confirm__btns { display: flex; gap: 10px; margin-top: 18px; }
+.rl-confirm__btn {
+  flex: 1 1 0; padding: 11px; border-radius: var(--r-md);
+  font-weight: 700; font-size: 0.92rem;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+.rl-confirm__btn:disabled { opacity: 0.6; }
+.rl-confirm__btn:not(:disabled):active { transform: scale(0.98); }
+.rl-confirm__btn--cancel { background: transparent; border: 1px solid var(--border-soft); color: var(--text); }
+.rl-confirm__btn--del { background: var(--danger, #ef4444); color: #fff; }
+.rl-fade-enter-active, .rl-fade-leave-active { transition: opacity 0.18s ease; }
+.rl-fade-enter-from, .rl-fade-leave-to { opacity: 0; }
 .rl-card__info { padding: 9px 10px 11px; display: flex; flex-direction: column; gap: 6px; }
 .rl-card__desc { font-size: 0.83rem; color: var(--text); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .rl-card__autor { display: flex; align-items: center; gap: 5px; min-width: 0; }
