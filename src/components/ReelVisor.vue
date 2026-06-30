@@ -104,6 +104,7 @@ let unsubComent = null
 
 function abrirComentarios() {
   mostrarComentarios.value = true
+  escucharTeclado()
   if (unsubComent) return
   const q = query(
     collection(db, 'reels', props.reel.id, 'comentarios'),
@@ -113,7 +114,10 @@ function abrirComentarios() {
     comentarios.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
   })
 }
-function cerrarComentarios() { mostrarComentarios.value = false }
+function cerrarComentarios() {
+  mostrarComentarios.value = false
+  dejarTeclado()
+}
 
 async function enviarComentario() {
   const texto = nuevoComentario.value.trim()
@@ -161,6 +165,33 @@ function liberarScroll() {
   contScroll = null
 }
 
+// ---------- Teclado en la hoja de comentarios (VisualViewport) ----------
+// En iOS el teclado NO encoge el viewport ni cambia vh/dvh, así que un bottom
+// sheet con position:fixed se rompe: el contenido se empuja fuera y queda un
+// hueco blanco. Seguimos el visualViewport y fijamos el alto/offset VISIBLES en
+// variables CSS, para que la hoja ocupe solo el área de arriba del teclado.
+const vv = (typeof window !== 'undefined' && window.visualViewport) || null
+function ajustarPorTeclado() {
+  if (!vv) return
+  const raiz = document.documentElement
+  raiz.style.setProperty('--vz-vv-h', Math.round(vv.height) + 'px')
+  raiz.style.setProperty('--vz-vv-top', Math.round(vv.offsetTop) + 'px')
+}
+function escucharTeclado() {
+  if (!vv) return
+  ajustarPorTeclado()
+  vv.addEventListener('resize', ajustarPorTeclado)
+  vv.addEventListener('scroll', ajustarPorTeclado)
+}
+function dejarTeclado() {
+  if (!vv) return
+  vv.removeEventListener('resize', ajustarPorTeclado)
+  vv.removeEventListener('scroll', ajustarPorTeclado)
+  const raiz = document.documentElement
+  raiz.style.removeProperty('--vz-vv-h')
+  raiz.style.removeProperty('--vz-vv-top')
+}
+
 onMounted(() => {
   suscribirReel()
   bloquearScroll()
@@ -179,6 +210,7 @@ onUnmounted(() => {
   if (unsubReel) unsubReel()
   if (unsubComent) unsubComent()
   liberarScroll()
+  dejarTeclado()
 })
 </script>
 
@@ -422,11 +454,18 @@ onUnmounted(() => {
 
 /* Panel comentarios */
 .vz-coment {
-  position: fixed; inset: 0; z-index: 1100; background: rgba(2, 6, 23, 0.55);
+  position: fixed; left: 0; right: 0;
+  /* Por defecto cubre toda la pantalla; al abrir el teclado, el JS fija el alto y
+     el offset al área VISIBLE (visualViewport), así la hoja queda arriba del
+     teclado y no se sale dejando un hueco blanco. */
+  top: var(--vz-vv-top, 0px);
+  height: var(--vz-vv-h, 100%);
+  z-index: 1100; background: rgba(2, 6, 23, 0.55);
   display: flex; align-items: flex-end; justify-content: center;
 }
 .vz-coment__panel {
-  width: 100%; max-width: 460px; height: 70vh; display: flex; flex-direction: column;
+  width: 100%; max-width: 460px; height: 70vh; max-height: 100%;
+  display: flex; flex-direction: column;
   background: var(--surface); border-radius: 22px 22px 0 0; overflow: hidden;
 }
 .vz-coment__head {
