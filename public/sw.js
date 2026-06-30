@@ -17,7 +17,7 @@
  *      URL nueva (no hay riesgo de servir una versión vieja del mismo archivo).
  */
 
-const CACHE = 'gymvexa-socios-v1'
+const CACHE = 'gymvexa-socios-v2'
 const SHELL = '/index.html'
 
 // Precacheamos solo el shell mínimo para el arranque offline.
