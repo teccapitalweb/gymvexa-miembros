@@ -35,6 +35,10 @@ const ENDPOINT_PROGRESO = `${BACKEND_URL}/api/socios/progreso`
 // backend que CREE el registro con datos de confianza (nombre del gym, nombre
 // real del autor y su rol). Las reglas no dejan que el cliente cree reels.
 const ENDPOINT_REELS_CREAR = `${BACKEND_URL}/api/reels/crear`
+// Código de autorización de pago (OTP): el backend (Admin SDK) genera 3 dígitos
+// en la ficha del socio y los devuelve para mostrarlos con su cuenta regresiva.
+// El socio NO escribe su ficha directo; todo lo sensible pasa por el backend.
+const ENDPOINT_CODIGO_PAGO = `${BACKEND_URL}/api/socios/codigo-pago`
 
 // Construye un Error con status + mensaje legible (para que la UI ramifique).
 function errorBackend(mensaje, { status = null, data = null, red = false } = {}) {
@@ -369,6 +373,78 @@ export async function registrarCheckin({ metodoCheckin = 'qr_app', idempotencyKe
     status: res.status,
     data,
   })
+}
+
+// --------------------------------------------------------------------------
+// Código de autorización de pago (OTP de 3 dígitos, tipo token de banco).
+// --------------------------------------------------------------------------
+
+/**
+ * Genera un CÓDIGO DE AUTORIZACIÓN DE PAGO para el socio autenticado. El backend
+ * (Admin SDK) crea 3 dígitos, los guarda en la ficha del socio y los devuelve
+ * para mostrarlos con su cuenta regresiva. El socio lo enseña en recepción para
+ * autorizar un cobro contra su saldo/fiado.
+ * POST /api/socios/codigo-pago con Bearer <idToken>.
+ *
+ * @returns {Promise<{ ok: true, valor: string, expiraEnMs: number, segundos: number }>}
+ * @throws {Error} con `.status` y `.message` legible.
+ */
+export async function generarCodigoPago() {
+  const user = auth.currentUser
+  if (!user) {
+    throw errorBackend('No hay una sesión activa. Vuelve a iniciar sesión.', {
+      status: 401,
+    })
+  }
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    throw errorBackend('No pudimos validar tu sesión. Inténtalo de nuevo.', {
+      status: 401,
+    })
+  }
+
+  let res
+  try {
+    res = await fetch(ENDPOINT_CODIGO_PAGO, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    })
+  } catch {
+    throw errorBackend(
+      'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+      { red: true },
+    )
+  }
+
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+
+  if (res.ok && data?.ok) {
+    return {
+      ok: true,
+      valor: String(data.valor || ''),
+      expiraEnMs: Number(data.expiraEnMs) || 0,
+      segundos: Number(data.segundos) || 90,
+    }
+  }
+
+  throw errorBackend(
+    data?.error ||
+      data?.mensaje ||
+      'No se pudo generar el código. Inténtalo de nuevo.',
+    { status: res.status, data },
+  )
 }
 
 // --------------------------------------------------------------------------
