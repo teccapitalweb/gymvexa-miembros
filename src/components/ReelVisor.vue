@@ -17,7 +17,7 @@ import {
 import { db, auth } from '../firebase'
 import { useSocioStore } from '../stores/socio'
 import { categoriaReelLabel } from '../data/categoriasReels'
-import { notificarReel, eliminarReel } from '../services/backend'
+import { notificarReel, eliminarReel, sumarVistaReel } from '../services/backend'
 
 const props = defineProps({ reel: { type: Object, required: true } })
 const emit = defineEmits(['cerrar'])
@@ -107,14 +107,14 @@ async function toggleGuardar() {
 }
 
 // Cuenta una reproducción, UNA sola vez por reel por sesión (no infla ni gasta
-// de más). Escritura directa, igual que los likes.
-function contarVista() {
+// de más). Va por el backend (Admin SDK) porque las reglas de /reels no dejan al
+// cliente escribir "vistas"; el contador en vivo se refresca solo (onSnapshot).
+async function contarVista() {
   const id = props.reel.id
   if (!id || vistasContadasSesion.has(id)) return
   vistasContadasSesion.add(id)
-  updateDoc(doc(db, 'reels', id), { vistas: increment(1) }).catch(() => {
-    vistasContadasSesion.delete(id) // si falló, permite reintentar al reabrir
-  })
+  const r = await sumarVistaReel(id)
+  if (!r?.ok) vistasContadasSesion.delete(id) // si falló, permite reintentar al reabrir
 }
 
 // ---------- Borrar reel propio ----------
