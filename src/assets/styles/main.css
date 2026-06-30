@@ -167,10 +167,14 @@ body::after {
 #app {
   display: flex;
   flex-direction: column;
-  position: relative;
+  /* Anclado a los 4 bordes del viewport (position:fixed + inset:0). Esto llena
+     EXACTAMENTE el área visible en iOS (PWA y Safari), donde 100dvh a veces se
+     queda corto y dejaba un hueco blanco bajo la barra inferior. El scroll sigue
+     viviendo en .app-scroll, así que el documento no scrollea y la barra no salta;
+     el safe-area inferior lo respeta BottomNav con su padding-bottom. */
+  position: fixed;
+  inset: 0;
   z-index: 1;
-  height: 100vh;   /* respaldo para navegadores sin dvh */
-  height: 100dvh;  /* se ajusta a la barra del navegador móvil */
   overflow: hidden;
 }
 
