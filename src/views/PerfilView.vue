@@ -1,11 +1,12 @@
 <script setup>
 // Perfil del socio (solo lectura): datos, membresía, saldo, visitas.
-import { onMounted, computed, ref, watch } from 'vue'
+import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase'
+import { generarCodigoPago } from '../services/backend'
 import { centavosAPesos } from '../composables/useDinero'
 import { interpretarMembresia } from '../composables/useMembresia'
 import {
@@ -135,6 +136,61 @@ async function guardarRedes() {
     redesTrabajando.value = false
   }
 }
+
+// --- Código de autorización de pago (OTP de 3 dígitos, tipo token de banco) ---
+const codigoPago = ref('') // "473" mientras hay uno activo; '' si no
+const codigoExpiraMs = ref(0) // epoch ms de expiración
+const codigoRestante = ref(0) // segundos que faltan (para la regresiva)
+const codigoTrabajando = ref(false)
+const codigoMsg = ref('') // error legible si falla la generación
+let codigoTimer = null
+
+// "1:30" a partir de los segundos restantes.
+const codigoTiempo = computed(() => {
+  const s = Math.max(0, codigoRestante.value)
+  const m = Math.floor(s / 60)
+  const ss = String(s % 60).padStart(2, '0')
+  return `${m}:${ss}`
+})
+
+function detenerTimerCodigo() {
+  if (codigoTimer) {
+    clearInterval(codigoTimer)
+    codigoTimer = null
+  }
+}
+
+function tickCodigo() {
+  const faltan = Math.round((codigoExpiraMs.value - Date.now()) / 1000)
+  codigoRestante.value = Math.max(0, faltan)
+  if (faltan <= 0) {
+    // Expiró: lo quitamos de pantalla y se puede generar otro.
+    detenerTimerCodigo()
+    codigoPago.value = ''
+  }
+}
+
+async function pedirCodigoPago() {
+  if (codigoTrabajando.value) return
+  codigoTrabajando.value = true
+  codigoMsg.value = ''
+  try {
+    const r = await generarCodigoPago()
+    codigoPago.value = r.valor
+    codigoExpiraMs.value = r.expiraEnMs || Date.now() + (r.segundos || 90) * 1000
+    detenerTimerCodigo()
+    tickCodigo()
+    codigoTimer = setInterval(tickCodigo, 1000)
+  } catch (e) {
+    codigoMsg.value =
+      e?.message || 'No se pudo generar el código. Inténtalo de nuevo.'
+  } finally {
+    codigoTrabajando.value = false
+  }
+}
+
+onUnmounted(detenerTimerCodigo)
+
 const membresia = computed(() => interpretarMembresia(socio.estadoMembresia))
 const inicial = computed(() => (socio.nombreSocio || auth.correo || '?').trim().charAt(0).toUpperCase())
 const tieneDeuda = computed(() => Number(d.value.deudaActual) > 0)
@@ -184,6 +240,56 @@ async function cerrarSesion() {
           <span class="stat__num metric">{{ centavosAPesos(d.saldoActual) }}</span>
         </section>
       </div>
+
+      <!-- Código de autorización de pago (tipo token de banco) -->
+      <section class="card bloque">
+        <h2 class="bloque__title">Código de pago</h2>
+
+        <template v-if="codigoPago">
+          <div class="codigo-pago__valor" aria-live="polite">
+            <span
+              v-for="(c, i) in codigoPago.split('')"
+              :key="i"
+              class="codigo-pago__digito"
+              >{{ c }}</span
+            >
+          </div>
+          <div class="codigo-pago__regresiva">
+            <span
+              class="codigo-pago__punto"
+              :class="{ 'codigo-pago__punto--bajo': codigoRestante <= 15 }"
+            ></span>
+            Expira en {{ codigoTiempo }}
+          </div>
+          <p class="codigo-pago__guia">
+            Dale este código a recepción para autorizar tu cobro.
+          </p>
+          <button
+            class="codigo-pago__btn codigo-pago__btn--otro"
+            :disabled="codigoTrabajando"
+            @click="pedirCodigoPago"
+          >
+            Generar otro
+          </button>
+        </template>
+
+        <template v-else>
+          <p class="codigo-pago__intro">
+            Genera un código temporal y dáselo a recepción para autorizar un
+            cobro a tu saldo. Caduca en 90 segundos, como el token de tu banco.
+          </p>
+          <button
+            class="codigo-pago__btn"
+            :disabled="codigoTrabajando"
+            @click="pedirCodigoPago"
+          >
+            <span v-if="codigoTrabajando">Generando…</span>
+            <span v-else>Generar código de pago</span>
+          </button>
+        </template>
+
+        <p v-if="codigoMsg" class="codigo-pago__error">{{ codigoMsg }}</p>
+      </section>
 
       <!-- Membresía -->
       <section class="card bloque">
@@ -532,6 +638,83 @@ async function cerrarSesion() {
 }
 .redes__guardar:disabled { opacity: 0.6; }
 .redes__guardar:not(:disabled):active { transform: scale(0.99); }
+
+/* --- Código de autorización de pago (OTP) --- */
+.codigo-pago__intro,
+.codigo-pago__guia {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+  margin: 0;
+}
+.codigo-pago__valor {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 4px 0 2px;
+}
+.codigo-pago__digito {
+  flex: 0 0 auto;
+  min-width: 62px;
+  padding: 14px 0;
+  text-align: center;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+}
+.codigo-pago__regresiva {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.codigo-pago__punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: codigoLatido 1s ease-in-out infinite;
+}
+.codigo-pago__punto--bajo {
+  background: var(--danger, #ef4444);
+  animation: none;
+}
+@keyframes codigoLatido {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.codigo-pago__btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--r-md);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--grad-firma);
+  box-shadow: 0 6px 16px var(--accent-glow);
+  transition: opacity 0.18s ease, transform 0.12s ease;
+}
+.codigo-pago__btn:disabled { opacity: 0.6; }
+.codigo-pago__btn:not(:disabled):active { transform: scale(0.99); }
+.codigo-pago__btn--otro {
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border-soft);
+  box-shadow: none;
+}
+.codigo-pago__error {
+  font-size: 0.84rem;
+  color: var(--danger, #ef4444);
+  margin: 0;
+}
 
 /* Enlace a Videos guardados */
 .perfil-link { display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; }
