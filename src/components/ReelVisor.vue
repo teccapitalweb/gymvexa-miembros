@@ -1,3 +1,9 @@
+<script>
+// Módulo (una sola vez por carga de la app): reels cuya vista YA contamos en
+// esta sesión, para no inflar el contador al reabrir el mismo video.
+const vistasContadasSesion = new Set()
+</script>
+
 <script setup>
 // Visor de un Reel a PANTALLA COMPLETA (estilo TikTok/Reels): el video llena
 // toda la pantalla y encima van los botones (me gusta, comentar, guardar), la
@@ -11,6 +17,7 @@ import {
 import { db, auth } from '../firebase'
 import { useSocioStore } from '../stores/socio'
 import { categoriaReelLabel } from '../data/categoriasReels'
+import { notificarReel, eliminarReel } from '../services/backend'
 
 const props = defineProps({ reel: { type: Object, required: true } })
 const emit = defineEmits(['cerrar'])
@@ -28,6 +35,8 @@ const comentariosCount = computed(() => reelVivo.value.comentariosCount || 0)
 const yaDiLike = computed(() => (reelVivo.value.likedBy || []).includes(miUid.value))
 const yaGuarde = computed(() => (reelVivo.value.guardadoPor || []).includes(miUid.value))
 const inicial = computed(() => (reelVivo.value.autorNombre || '?').charAt(0).toUpperCase())
+const vistas = computed(() => reelVivo.value.vistas || 0)
+const esMio = computed(() => !!miUid.value && reelVivo.value.autorUid === miUid.value)
 
 function igLink(u) { return 'https://instagram.com/' + u }
 function tiktokLink(u) { return 'https://www.tiktok.com/@' + u }
@@ -82,6 +91,8 @@ async function toggleLike() {
       likes: increment(dio ? -1 : 1),
       likedBy: dio ? arrayRemove(miUid.value) : arrayUnion(miUid.value),
     })
+    // Avisa al autor SOLO al reaccionar (no al quitar la reacción).
+    if (!dio) notificarReel({ reelId: props.reel.id, tipo: 'reaccion' })
   } catch (e) { /* noop */ }
 }
 async function toggleGuardar() {
@@ -93,6 +104,44 @@ async function toggleGuardar() {
       guardadoPor: g ? arrayRemove(miUid.value) : arrayUnion(miUid.value),
     })
   } catch (e) { /* noop */ }
+}
+
+// Cuenta una reproducción, UNA sola vez por reel por sesión (no infla ni gasta
+// de más). Escritura directa, igual que los likes.
+function contarVista() {
+  const id = props.reel.id
+  if (!id || vistasContadasSesion.has(id)) return
+  vistasContadasSesion.add(id)
+  updateDoc(doc(db, 'reels', id), { vistas: increment(1) }).catch(() => {
+    vistasContadasSesion.delete(id) // si falló, permite reintentar al reabrir
+  })
+}
+
+// ---------- Borrar reel propio ----------
+const confirmandoBorrado = ref(false)
+const borrando = ref(false)
+const errorBorrado = ref('')
+
+function pedirBorrar() {
+  errorBorrado.value = ''
+  confirmandoBorrado.value = true
+}
+function cancelarBorrar() {
+  if (borrando.value) return
+  confirmandoBorrado.value = false
+}
+async function confirmarBorrar() {
+  if (borrando.value) return
+  borrando.value = true
+  errorBorrado.value = ''
+  try {
+    await eliminarReel(props.reel.id)
+    // Listo: cierra el visor; el feed se actualiza solo (onSnapshot).
+    emit('cerrar')
+  } catch (e) {
+    errorBorrado.value = e?.message || 'No se pudo eliminar. Inténtalo de nuevo.'
+    borrando.value = false
+  }
 }
 
 // ---------- Comentarios ----------
@@ -134,6 +183,7 @@ async function enviarComentario() {
     })
     await updateDoc(doc(db, 'reels', props.reel.id), { comentariosCount: increment(1) })
     nuevoComentario.value = ''
+    notificarReel({ reelId: props.reel.id, tipo: 'comentario' })
   } catch (e) { /* noop */ } finally {
     enviando.value = false
   }
@@ -203,6 +253,7 @@ function dejarTeclado() {
 onMounted(() => {
   suscribirReel()
   bloquearScroll()
+  contarVista()
   const v = videoEl.value
   if (v) {
     // Intenta reproducir con sonido (hubo gesto al abrir); si lo bloquean, mudo.
@@ -295,6 +346,28 @@ onUnmounted(() => {
         </span>
         <span class="vz-acc__n">{{ guardados }}</span>
       </button>
+
+      <!-- Vistas (reproducciones) -->
+      <div class="vz-acc vz-acc--stat" aria-label="Reproducciones">
+        <span class="vz-acc__ic">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+          </svg>
+        </span>
+        <span class="vz-acc__n">{{ vistas }}</span>
+      </div>
+
+      <!-- Borrar (solo si el reel es mío) -->
+      <button v-if="esMio" class="vz-acc vz-acc--borrar" aria-label="Eliminar reel" @click.stop="pedirBorrar">
+        <span class="vz-acc__ic">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+            <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
+          </svg>
+        </span>
+      </button>
     </div>
 
     <!-- Info (abajo izquierda) -->
@@ -327,6 +400,35 @@ onUnmounted(() => {
     <div class="vz-barra" @click.stop="buscar">
       <div class="vz-barra__fill" :style="{ width: progreso + '%' }"></div>
     </div>
+
+    <!-- Confirmación de borrado -->
+    <transition name="vz-fade">
+      <div v-if="confirmandoBorrado" class="vz-confirm" @click.self="cancelarBorrar">
+        <div class="vz-confirm__card">
+          <p class="vz-confirm__titulo">¿Eliminar este reel?</p>
+          <p class="vz-confirm__texto">
+            Se borrará el video y sus comentarios. No se puede deshacer.
+          </p>
+          <p v-if="errorBorrado" class="vz-confirm__error">{{ errorBorrado }}</p>
+          <div class="vz-confirm__btns">
+            <button
+              class="vz-confirm__btn vz-confirm__btn--cancel"
+              :disabled="borrando"
+              @click="cancelarBorrar"
+            >
+              Cancelar
+            </button>
+            <button
+              class="vz-confirm__btn vz-confirm__btn--del"
+              :disabled="borrando"
+              @click="confirmarBorrar"
+            >
+              {{ borrando ? 'Eliminando…' : 'Eliminar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
 
     <!-- Panel de comentarios -->
     <transition name="vz-sheet">
@@ -416,6 +518,76 @@ onUnmounted(() => {
   color: #fff; font-size: 0.8rem; font-weight: 700;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
+.vz-acc--stat { cursor: default; }
+.vz-acc--borrar:active .vz-acc__ic { color: #f87171; }
+
+/* Confirmación de borrado */
+.vz-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.vz-confirm__card {
+  width: 100%;
+  max-width: 320px;
+  background: var(--surface, #fff);
+  color: var(--text, #0f172a);
+  border-radius: var(--r-md, 16px);
+  padding: 20px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+}
+.vz-confirm__titulo {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text, #0f172a);
+}
+.vz-confirm__texto {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text-dim, #64748b);
+}
+.vz-confirm__error {
+  margin: 10px 0 0;
+  font-size: 0.84rem;
+  color: var(--danger, #ef4444);
+}
+.vz-confirm__btns {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+.vz-confirm__btn {
+  flex: 1 1 0;
+  padding: 11px;
+  border-radius: var(--r-md, 12px);
+  font-weight: 700;
+  font-size: 0.92rem;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+.vz-confirm__btn:disabled { opacity: 0.6; }
+.vz-confirm__btn:not(:disabled):active { transform: scale(0.98); }
+.vz-confirm__btn--cancel {
+  background: transparent;
+  border: 1px solid var(--border-soft, #e2e8f0);
+  color: var(--text, #0f172a);
+}
+.vz-confirm__btn--del {
+  background: var(--danger, #ef4444);
+  color: #fff;
+}
+
+/* Transición de aparición del overlay */
+.vz-fade-enter-active, .vz-fade-leave-active { transition: opacity 0.18s ease; }
+.vz-fade-enter-from, .vz-fade-leave-to { opacity: 0; }
 
 /* Info (abajo izquierda) */
 .vz-info {

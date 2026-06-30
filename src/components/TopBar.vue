@@ -33,16 +33,43 @@ const router = useRouter()
 const { abierto: menuAbierto } = useDrawer()
 const notifAbierta = ref(false)
 
-// Al tocar una notificación de like/comentario, lleva al miembro al foro y
-// directo a ESE post (lo resalta; si fue comentario, abre los comentarios).
-// Las notis sin postId (p. ej. felicitaciones de cumpleaños) no navegan.
+// Al tocar una notificación, lleva al lugar correcto: las del foro al post; las
+// de reels a la pestaña Reels abriendo ESE reel. Las notis sin destino no navegan.
 function irAlPost(n) {
-  if (!n || !n.postId) return
+  if (!n) return
+  // Reels (reacción/comentario agrupados) -> abrir el reel en la pestaña Reels.
+  if (n.tipo === 'reel_reaccion' || n.tipo === 'reel_comentario') {
+    if (!n.reelId) return
+    notifAbierta.value = false
+    router.push({ path: '/reels', query: { reel: n.reelId } })
+    return
+  }
+  // Foro (like/comentario) -> al post (lo resalta; si fue comentario, abre comentarios).
+  if (!n.postId) return
   notifAbierta.value = false
   router.push({
     path: '/foro',
     query: { post: n.postId, ver: n.tipo === 'comentario' ? 'coment' : 'post' },
   })
+}
+
+// ¿Es una notificación de reel? (reacción o comentario agrupados)
+function esNotiReel(n) {
+  return n?.tipo === 'reel_reaccion' || n?.tipo === 'reel_comentario'
+}
+// Cuántas personas MÁS, además del último que interactuó (para el texto agrupado).
+function masQueElUltimo(n) {
+  const total = Array.isArray(n?.actores) ? n.actores.length : 1
+  return Math.max(0, total - 1)
+}
+// Texto agrupado: "reaccionó a tu reel" / "y 3 personas más reaccionaron a tu reel".
+function restoTextoReel(n) {
+  const mas = masQueElUltimo(n)
+  const gente = mas === 0 ? '' : mas === 1 ? 'y 1 persona más ' : `y ${mas} personas más `
+  if (n?.tipo === 'reel_reaccion') {
+    return `${gente}${mas >= 1 ? 'reaccionaron' : 'reaccionó'} a tu reel`
+  }
+  return `${gente}${mas >= 1 ? 'comentaron' : 'comentó'} tu reel`
 }
 
 // Cerrar el popover de notificaciones al cambiar de pestaña/ruta.
@@ -317,9 +344,9 @@ function hace(creadoEn) {
                 >
                   <span
                     class="nitem__icon"
-                    :class="n.tipo === 'like' ? 'nitem__icon--like' : 'nitem__icon--com'"
+                    :class="(n.tipo === 'like' || n.tipo === 'reel_reaccion') ? 'nitem__icon--like' : 'nitem__icon--com'"
                   >
-                    <svg v-if="n.tipo === 'like'" viewBox="0 0 24 24" fill="currentColor">
+                    <svg v-if="n.tipo === 'like' || n.tipo === 'reel_reaccion'" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 22l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
                     </svg>
                     <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
@@ -329,9 +356,15 @@ function hace(creadoEn) {
                   </span>
                   <div class="nitem__body">
                     <p class="nitem__text">
-                      <strong>{{ n.esStaff ? (n.deNombre || 'Tu gimnasio') : (primerNombreDe(n.deNombre) || 'Alguien') }}</strong>
-                      <template v-if="n.tipo === 'like'"> le dio me gusta a tu publicación</template>
-                      <template v-else> comentó tu publicación</template>
+                      <template v-if="esNotiReel(n)">
+                        <strong>{{ primerNombreDe(n.ultimoActorNombre) || 'Alguien' }}</strong>
+                        {{ restoTextoReel(n) }}
+                      </template>
+                      <template v-else>
+                        <strong>{{ n.esStaff ? (n.deNombre || 'Tu gimnasio') : (primerNombreDe(n.deNombre) || 'Alguien') }}</strong>
+                        <template v-if="n.tipo === 'like'"> le dio me gusta a tu publicación</template>
+                        <template v-else> comentó tu publicación</template>
+                      </template>
                     </p>
                     <p v-if="n.extracto" class="nitem__extracto">"{{ n.extracto }}"</p>
                     <span class="nitem__fecha">{{ hace(n.creadoEn) }}</span>
