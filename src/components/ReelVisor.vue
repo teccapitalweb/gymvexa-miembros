@@ -3,7 +3,7 @@
 // toda la pantalla y encima van los botones (me gusta, comentar, guardar), la
 // info del autor y la barra de progreso. Bloquea el scroll del fondo mientras
 // está abierto. Los comentarios se abren en un panel inferior.
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import {
   doc, updateDoc, increment, arrayUnion, arrayRemove,
   collection, addDoc, query, orderBy, onSnapshot, serverTimestamp,
@@ -97,6 +97,7 @@ async function toggleGuardar() {
 
 // ---------- Comentarios ----------
 const comentarios = ref([])
+const listaComentRef = ref(null)
 const mostrarComentarios = ref(false)
 const nuevoComentario = ref('')
 const enviando = ref(false)
@@ -108,7 +109,7 @@ function abrirComentarios() {
   if (unsubComent) return
   const q = query(
     collection(db, 'reels', props.reel.id, 'comentarios'),
-    orderBy('creadoEn', 'desc'),
+    orderBy('creadoEn', 'asc'),
   )
   unsubComent = onSnapshot(q, (snap) => {
     comentarios.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
@@ -137,6 +138,15 @@ async function enviarComentario() {
     enviando.value = false
   }
 }
+
+// Deja siempre visible el último comentario (el más nuevo), pegado al input.
+function scrollComentAbajo() {
+  const el = listaComentRef.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+watch(comentarios, () => {
+  if (mostrarComentarios.value) nextTick(scrollComentAbajo)
+})
 
 function inicialDe(n) { return (n || '?').charAt(0).toUpperCase() }
 function tiempoRel(ts) {
@@ -329,7 +339,7 @@ onUnmounted(() => {
                    stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
             </button>
           </header>
-          <div class="vz-coment__lista">
+          <div class="vz-coment__lista" ref="listaComentRef">
             <div v-if="!comentarios.length" class="vz-coment__vacio">
               <p>Aún no hay comentarios.</p>
               <p class="vz-coment__vacio-d">Sé el primero en escribir algo.</p>
@@ -473,6 +483,9 @@ onUnmounted(() => {
 .vz-coment__titulo { font-weight: 800; font-size: 1rem; color: var(--text); }
 .vz-coment__x { color: var(--text-dim); padding: 4px; display: flex; }
 .vz-coment__lista { flex: 1; overflow-y: auto; padding: 8px 16px; display: flex; flex-direction: column; }
+/* Con pocos comentarios se pegan ABAJO (junto al input), no arriba dejando hueco
+   blanco. El margin se colapsa solo cuando hay tantos que llenan y hacen scroll. */
+.vz-coment__lista > .vz-cmt:first-child { margin-top: auto; }
 .vz-coment__vacio { text-align: center; color: var(--text-dim); padding: 40px 20px; }
 .vz-coment__vacio-d { font-size: 0.86rem; color: var(--text-faint); margin-top: 4px; }
 .vz-cmt { display: flex; gap: 10px; padding: 9px 0; }
