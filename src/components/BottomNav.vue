@@ -112,11 +112,16 @@ const { hayNuevos: hayNuevosForo } = useAvisosForo()
 
 <style scoped>
 .bottom-nav {
-  /* Es parte del layout: el ÚLTIMO flex item de #app, NO position:fixed. Así la
-     barra queda anclada al fondo por el propio flujo y NUNCA salta al cambiar de
-     pestaña ni cuando la barra del navegador móvil aparece/desaparece. #app mide
-     100dvh y .app-scroll (flex:1) toma todo el alto restante. */
-  flex-shrink: 0;
+  /* Anclada al borde inferior REAL del viewport (position:fixed; bottom:0). En
+     iOS esto SÍ llega al fondo físico de la pantalla; el flex item dejaba un
+     hueco blanco debajo porque #app no medía la pantalla completa. NO vuelve a
+     "saltar" como el nav viejo: el documento ya no scrollea (el scroll vive en
+     .app-scroll), así que la barra de URL del navegador no aparece/desaparece. */
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
   /* Fondo 100% SÓLIDO (sin vidrio ni backdrop-filter). En Android como PWA el
      blur no se pinta aunque el navegador diga que lo soporta, y un fondo
      translúcido dejaba ver el contenido de atrás. Sólido = se ve bien en todos. */
