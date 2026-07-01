@@ -39,6 +39,10 @@ const ENDPOINT_REELS_CREAR = `${BACKEND_URL}/api/reels/crear`
 // en la ficha del socio y los devuelve para mostrarlos con su cuenta regresiva.
 // El socio NO escribe su ficha directo; todo lo sensible pasa por el backend.
 const ENDPOINT_CODIGO_PAGO = `${BACKEND_URL}/api/socios/codigo-pago`
+// Pagar deuda con saldo a favor: transferencia interna (baja saldo y deuda) que
+// el socio dispara desde su app. Va por el backend (Admin SDK) porque el cliente
+// no puede tocar su saldo/deuda directo; es atómica e idempotente.
+const ENDPOINT_PAGAR_DEUDA = `${BACKEND_URL}/api/socios/pagar-deuda`
 // Reels: avisar al autor que reaccionaron/comentaron (notificación agrupada) y
 // borrar un reel propio (doc + comentarios + video/portada de Storage). Las
 // notificaciones las crea solo el backend; el borrado verifica que seas el autor.
@@ -451,6 +455,87 @@ export async function generarCodigoPago() {
     data?.error ||
       data?.mensaje ||
       'No se pudo generar el código. Inténtalo de nuevo.',
+    { status: res.status, data },
+  )
+}
+
+// --------------------------------------------------------------------------
+// Pagar deuda con saldo a favor (autoservicio del socio).
+// --------------------------------------------------------------------------
+
+/**
+ * Paga (abona) la DEUDA del socio autenticado usando su SALDO A FAVOR. El
+ * backend (Admin SDK) baja el saldo y la deuda en la misma cantidad, de forma
+ * atómica e idempotente. Devuelve el saldo y la deuda ya actualizados.
+ * POST /api/socios/pagar-deuda con Bearer <idToken>.
+ *
+ * @param {number} montoCentavos  Entero positivo en centavos a abonar.
+ * @returns {Promise<{ ok: true, saldoNuevo: number, deudaNuevo: number }>}
+ * @throws {Error} con `.status` y `.message` legible.
+ */
+export async function pagarDeuda(montoCentavos) {
+  const user = auth.currentUser
+  if (!user) {
+    throw errorBackend('No hay una sesión activa. Vuelve a iniciar sesión.', {
+      status: 401,
+    })
+  }
+
+  const monto = Number(montoCentavos)
+  if (!Number.isInteger(monto) || monto <= 0) {
+    throw errorBackend('El monto a abonar debe ser mayor a cero.', {
+      status: 400,
+    })
+  }
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    throw errorBackend('No pudimos validar tu sesión. Inténtalo de nuevo.', {
+      status: 401,
+    })
+  }
+
+  let res
+  try {
+    res = await fetch(ENDPOINT_PAGAR_DEUDA, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        montoCentavos: monto,
+        idempotencyKey: generarIdempotencyKey(),
+      }),
+    })
+  } catch {
+    throw errorBackend(
+      'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+      { red: true },
+    )
+  }
+
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+
+  if (res.ok && data?.ok) {
+    return {
+      ok: true,
+      saldoNuevo: Number(data.saldoNuevo) || 0,
+      deudaNuevo: Number(data.deudaNuevo) || 0,
+    }
+  }
+
+  throw errorBackend(
+    data?.error ||
+      data?.mensaje ||
+      'No se pudo aplicar el pago. Inténtalo de nuevo.',
     { status: res.status, data },
   )
 }
