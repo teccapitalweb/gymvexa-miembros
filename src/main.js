@@ -22,6 +22,16 @@ useAuthStore().init()
 app.use(router)
 app.mount('#app')
 
+// Login con Google por redirect: cuando el socio vuelve de Google, completamos
+// el login y lo llevamos al destino que había guardado antes de redirigir (p. ej.
+// /vincular?c=CODIGO). Si no venía de un redirect, no hace nada.
+useAuthStore()
+  .procesarRedirectGoogle()
+  .then((destino) => {
+    if (destino) router.replace(destino)
+  })
+  .catch(() => {})
+
 // Registra el service worker (PWA) solo en producción, para no interferir con
 // el HMR de Vite en desarrollo. Hace la app instalable y de carga rápida.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

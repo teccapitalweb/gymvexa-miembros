@@ -1,6 +1,6 @@
 <script setup>
 // Pantalla de login del socio (móvil-primero, oscuro-neón).
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import ThemeToggle from '../components/ThemeToggle.vue'
@@ -12,6 +12,15 @@ const auth = useAuthStore()
 const correo = ref('')
 const contrasena = ref('')
 const error = ref('')
+
+// Si el login con Google por redirect falló, el socio regresa a esta pantalla y
+// el error quedó guardado en el store. Lo mostramos aquí y lo limpiamos.
+onMounted(() => {
+  if (auth.errorRedirect) {
+    error.value = mensajeError(auth.errorRedirect)
+    auth.errorRedirect = null
+  }
+})
 
 function destino() {
   return typeof route.query.redirect === 'string' ? route.query.redirect : '/inicio'
@@ -57,8 +66,10 @@ async function entrar() {
 async function entrarConGoogle() {
   error.value = ''
   try {
-    await auth.loginGoogle()
-    router.replace(destino())
+    // Con redirect la página se va a Google y vuelve recargada: NO navegamos aquí.
+    // Guardamos el destino para restaurarlo al volver (lo hace loginGoogle) y el
+    // enrutado final ocurre en main.js tras procesar getRedirectResult.
+    await auth.loginGoogle(destino())
   } catch (e) {
     error.value = mensajeError(e)
   }
