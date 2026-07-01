@@ -34,9 +34,7 @@ watch(
   <div class="app-scroll">
     <TopBar v-if="mostrarNav" />
     <router-view v-slot="{ Component, route }">
-      <transition name="page" mode="out-in">
-        <component :is="Component" :key="route.name" />
-      </transition>
+      <component :is="Component" :key="route.name" />
     </router-view>
   </div>
   <BottomNav v-if="mostrarNav" />
