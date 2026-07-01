@@ -30,10 +30,18 @@ import { useSocioStore } from '../stores/socio'
 import { notificarForo } from '../services/backend'
 import { marcarForoVisto, ultimoPostMs } from '../composables/useForoNuevos'
 import { useRoute } from 'vue-router'
+import MembresiaVencida from '../components/MembresiaVencida.vue'
 
 const auth = useAuthStore()
 const socioStore = useSocioStore()
 const route = useRoute()
+
+// Bloqueo por membresía vencida: solo mostramos y suscribimos el feed cuando la
+// ficha del socio ya se resolvió Y la membresía está vigente. Si está vencida
+// (o mientras carga) NO suscribimos (evita leer datos) y mostramos el aviso.
+const puedeVerContenido = computed(
+  () => !!gymId.value && socioStore.resuelto && !socioStore.membresiaVencida,
+)
 
 // --- Ir directo a un post (al tocar una notificación de la campanita) ---
 // La campanita navega a /foro?post=ID (&ver=coment si fue comentario). Aquí
@@ -426,20 +434,30 @@ async function confirmarBorrarComentario() {
 
 onMounted(() => {
   // Igual que en Videos/Materiales: resuelve el gymId aunque se entre directo
-  // aquí tras recargar. Idempotente.
+  // aquí tras recargar. Idempotente. Esto también carga la ficha (y su vigencia).
   socioStore.vincularSocio()
-  if (gymId.value) suscribir()
+  // Solo suscribimos/marcamos visto si la membresía está vigente (bloqueo total
+  // a vencidos: ni siquiera leemos el feed).
+  if (puedeVerContenido.value) {
+    suscribir()
+    marcarForoVisto()
+  }
   tick = setInterval(() => {
     ahora.value = Date.now()
   }, 60000)
-  // Al entrar al foro (por la pestaña o desde una notificación) lo marcamos como
-  // VISTO: esto apaga el puntito de "hay publicaciones nuevas".
-  marcarForoVisto()
   // Si venimos de tocar una notificación (/foro?post=ID), ir a ese post.
   leerObjetivoDeRuta()
 })
-watch(gymId, (g) => {
-  if (g) suscribir()
+// Suscribe/da de baja el feed según la vigencia (y el gymId). Cubre el caso en
+// que la ficha del socio (y su membresía) cargan DESPUÉS de montar la vista: si
+// resulta vencida, no se llega a suscribir; si estaba suscrito, se da de baja.
+watch(puedeVerContenido, (ok) => {
+  if (ok) {
+    suscribir()
+    marcarForoVisto()
+  } else {
+    desuscribir()
+  }
 })
 // Si llega un post nuevo MIENTRAS el socio está viendo el foro, lo marcamos visto
 // al instante (lo está viendo: no debe encenderse el puntito).
@@ -463,7 +481,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="screen screen--with-nav">
+  <!-- Bloqueo total por membresía vencida: si no está vigente, solo el aviso. -->
+  <MembresiaVencida v-if="socioStore.membresiaVencida" />
+
+  <main v-else class="screen screen--with-nav">
     <header class="vista-head">
       <h1 class="vista-title">Foro</h1>
       <p class="vista-sub">La comunidad de tu gym, en un solo lugar.</p>

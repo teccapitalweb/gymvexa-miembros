@@ -14,10 +14,18 @@ import { CATEGORIAS_REELS, categoriaReelLabel } from '../data/categoriasReels'
 import { eliminarReel } from '../services/backend'
 import ReelSubir from '../components/ReelSubir.vue'
 import ReelVisor from '../components/ReelVisor.vue'
+import MembresiaVencida from '../components/MembresiaVencida.vue'
 
 const router = useRouter()
 const route = useRoute()
 const socio = useSocioStore()
+
+// Bloqueo por membresía vencida: solo suscribimos/mostramos los reels cuando la
+// ficha del socio ya se resolvió Y la membresía está vigente. Si está vencida (o
+// mientras carga) NO suscribimos (evita leer datos) y mostramos el aviso.
+const puedeVerContenido = computed(
+  () => socio.resuelto && !socio.membresiaVencida,
+)
 
 const vista = ref('todos') // 'todos' | 'club'
 const categoriaActiva = ref('todas')
@@ -164,8 +172,20 @@ function onPublicado() {
 
 onMounted(() => {
   if (!socio.estaVinculado && !socio.resuelto) socio.vincularSocio()
-  suscribir()
+  // Solo suscribimos si la membresía está vigente (bloqueo total a vencidos).
+  if (puedeVerContenido.value) suscribir()
   abrirDesdeRuta()
+})
+// Suscribe/da de baja según la vigencia. Cubre el caso en que la ficha del socio
+// (y su membresía) cargan DESPUÉS de montar la vista.
+watch(puedeVerContenido, (ok) => {
+  if (ok) {
+    suscribir()
+    abrirDesdeRuta()
+  } else if (unsub) {
+    unsub()
+    unsub = null
+  }
 })
 onUnmounted(() => {
   if (unsub) unsub()
@@ -174,7 +194,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="screen screen--with-nav rl-screen">
+  <!-- Bloqueo total por membresía vencida: si no está vigente, solo el aviso. -->
+  <MembresiaVencida v-if="socio.membresiaVencida" />
+
+  <main v-else class="screen screen--with-nav rl-screen">
     <!-- Cabecera: título con jerarquía + botón Subir -->
     <header class="rl-head">
       <div class="rl-head__txt">

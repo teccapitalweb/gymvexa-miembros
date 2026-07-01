@@ -16,6 +16,7 @@ import {
 import { db } from '../firebase'
 import { useAuthStore } from './auth'
 import { vincularSocioEnBackend } from '../services/backend'
+import { interpretarMembresia } from '../composables/useMembresia'
 
 // Mantenemos la función de baja del listener fuera del state (no es serializable).
 let _unsubSocio = null
@@ -50,6 +51,22 @@ export const useSocioStore = defineStore('socio', {
     deudaPesos: (state) => (Number(state.datos?.deudaActual) || 0) / 100,
 
     nombreSocio: (state) => state.datos?.nombre ?? '',
+
+    // --- Vigencia de la membresía (para bloquear foro/reels a vencidos) ---
+    // Envuelve interpretarMembresia() sobre la ficha en vivo (onSnapshot), así se
+    // actualiza solo si el panel cambia la membresía del socio (renovación/vencimiento).
+    membresiaVigente: (state) =>
+      interpretarMembresia(state.datos?.membresiaActual ?? null).vigente,
+
+    // Bloqueo SEGURO: solo es true cuando estamos ciertos de que hay que bloquear
+    // — la ficha del socio YA se resolvió (`resuelto`) Y hay datos cargados Y la
+    // membresía NO está vigente. Mientras la ficha no ha cargado (datos === null),
+    // es false: así NO se falso-bloquea a un socio al corriente durante la carga
+    // inicial (el dato "desconocido" se trata como NO vencido hasta confirmar).
+    membresiaVencida: (state) =>
+      state.resuelto &&
+      !!state.datos &&
+      !interpretarMembresia(state.datos?.membresiaActual ?? null).vigente,
   },
 
   actions: {

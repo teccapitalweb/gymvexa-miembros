@@ -3,6 +3,7 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useSocioStore } from '../stores/socio'
 
 const routes = [
   { path: '/', redirect: '/inicio' },
@@ -80,12 +81,21 @@ const routes = [
     path: '/foro',
     name: 'foro',
     component: () => import('../views/ForoView.vue'),
-    meta: { requiereSocio: true },
+    meta: { requiereSocio: true, requiereMembresia: true },
   },
   {
     path: '/reels',
     name: 'reels',
     component: () => import('../views/ReelsView.vue'),
+    meta: { requiereSocio: true, requiereMembresia: true },
+  },
+  {
+    // Aviso "membresía vencida": destino al que el guard manda a los socios con
+    // la membresía no vigente cuando intentan entrar a foro/reels. Requiere
+    // sesión+claim (no requiereMembresia, para no crear un bucle de redirección).
+    path: '/membresia-vencida',
+    name: 'membresiaVencida',
+    component: () => import('../components/MembresiaVencida.vue'),
     meta: { requiereSocio: true },
   },
   {
@@ -131,6 +141,18 @@ router.beforeEach(async (to) => {
   // Logueado pero SIN claim de socio en una ruta que lo exige -> a vincular.
   if (to.meta.requiereSocio && !authStore.tieneClaimSocio) {
     return { name: 'vincular' }
+  }
+
+  // Membresía VENCIDA en una ruta que exige membresía (foro/reels) -> aviso.
+  // Solo bloqueamos si la ficha del socio YA se resolvió y sabemos que no está
+  // vigente (socio.membresiaVencida es false mientras la ficha aún carga, así no
+  // falso-bloqueamos a un socio al corriente). Si aún no cargó, dejamos pasar y la
+  // propia vista (red de seguridad) bloquea al confirmarse la vigencia.
+  if (to.meta.requiereMembresia) {
+    const socioStore = useSocioStore()
+    if (socioStore.membresiaVencida) {
+      return { name: 'membresiaVencida' }
+    }
   }
 
   // Si ya está vinculado y va a /vincular, no tiene nada que hacer ahí -> a inicio.
