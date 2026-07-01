@@ -514,7 +514,11 @@ function hace(creadoEn) {
 .notif-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  /* Debajo del BottomNav (z-index 45) para que las pestañas sigan tocables
+     con el popover abierto: tocar una pestaña navega (y cierra el popover por
+     el watch de ruta) en vez de solo cerrarlo. Sigue muy por encima del
+     contenido, así tocar fuera del popover lo cierra igual. */
+  z-index: 44;
 }
 .notif-pop {
   position: absolute;
