@@ -6,7 +6,7 @@ import { useAuthStore } from '../stores/auth'
 import { useSocioStore } from '../stores/socio'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase'
-import { generarCodigoPago } from '../services/backend'
+import { generarCodigoPago, pagarDeuda } from '../services/backend'
 import { centavosAPesos } from '../composables/useDinero'
 import { interpretarMembresia } from '../composables/useMembresia'
 import {
@@ -195,6 +195,78 @@ const membresia = computed(() => interpretarMembresia(socio.estadoMembresia))
 const inicial = computed(() => (socio.nombreSocio || auth.correo || '?').trim().charAt(0).toUpperCase())
 const tieneDeuda = computed(() => Number(d.value.deudaActual) > 0)
 
+// --- Pagar deuda con saldo a favor (autoservicio) ---
+// Solo tiene sentido si el socio debe algo Y tiene saldo a favor. El máximo que
+// puede abonar es el menor de ambos (no puede pagar más de lo que tiene ni más
+// de lo que debe).
+const tieneSaldo = computed(() => Number(d.value.saldoActual) > 0)
+const maxPagableCentavos = computed(() => {
+  const saldo = Number(d.value.saldoActual) || 0
+  const deuda = Number(d.value.deudaActual) || 0
+  return Math.max(0, Math.min(saldo, deuda))
+})
+
+const pagoAbierto = ref(false)
+const montoInput = ref('') // en pesos, como texto
+const pagoTrabajando = ref(false)
+const pagoMsg = ref('') // error legible
+const pagoExito = ref('') // mensaje de confirmación
+
+// Pesos (texto) -> centavos entero.
+const montoCentavos = computed(() => {
+  const pesos = parseFloat(String(montoInput.value).replace(',', '.'))
+  if (!isFinite(pesos)) return 0
+  return Math.round(pesos * 100)
+})
+const montoValido = computed(
+  () =>
+    montoCentavos.value > 0 && montoCentavos.value <= maxPagableCentavos.value,
+)
+
+function abrirPago() {
+  pagoMsg.value = ''
+  pagoExito.value = ''
+  // Pre-llenar con el máximo (saldar todo por defecto); el socio puede bajarlo.
+  montoInput.value = (maxPagableCentavos.value / 100).toFixed(2)
+  pagoAbierto.value = true
+}
+function cerrarPago() {
+  pagoAbierto.value = false
+  pagoMsg.value = ''
+}
+function ponerMaximo() {
+  montoInput.value = (maxPagableCentavos.value / 100).toFixed(2)
+}
+// Deja solo dígitos y un punto, con máximo 2 decimales (sin letras ni símbolos).
+function sanitizarMonto() {
+  let s = String(montoInput.value).replace(/[^\d.]/g, '')
+  const partes = s.split('.')
+  if (partes.length > 2) s = partes[0] + '.' + partes.slice(1).join('')
+  const m = s.match(/^\d*(\.\d{0,2})?/)
+  montoInput.value = m ? m[0] : s
+}
+
+async function confirmarPago() {
+  if (pagoTrabajando.value || !montoValido.value) return
+  pagoTrabajando.value = true
+  pagoMsg.value = ''
+  try {
+    await pagarDeuda(montoCentavos.value)
+    pagoExito.value = 'Abono aplicado a tu deuda. ¡Gracias!'
+    pagoAbierto.value = false
+    montoInput.value = ''
+    // El saldo/deuda se actualizan solos por el listener en vivo del socio.
+    setTimeout(() => {
+      pagoExito.value = ''
+    }, 5000)
+  } catch (e) {
+    pagoMsg.value =
+      e?.message || 'No se pudo aplicar el pago. Inténtalo de nuevo.'
+  } finally {
+    pagoTrabajando.value = false
+  }
+}
+
 const fechaFinLegible = computed(() => {
   const f = membresia.value.fechaFin
   if (!f) return null
@@ -240,6 +312,9 @@ async function cerrarSesion() {
           <span class="stat__num metric">{{ centavosAPesos(d.saldoActual) }}</span>
         </section>
       </div>
+
+      <!-- Confirmación de pago de deuda (visible aunque el adeudo llegue a 0) -->
+      <p v-if="pagoExito" class="pago-ok card">{{ pagoExito }}</p>
 
       <!-- Código de autorización de pago (tipo token de banco) -->
       <section class="card bloque">
@@ -317,6 +392,67 @@ async function cerrarSesion() {
           <span class="linea__k">Adeudo</span>
           <span class="linea__v tono--rojo">{{ centavosAPesos(d.deudaActual) }}</span>
         </div>
+
+        <!-- Pagar con saldo a favor: solo si el socio tiene saldo -->
+        <template v-if="tieneSaldo">
+          <div class="linea">
+            <span class="linea__k">Saldo a favor</span>
+            <span class="linea__v tono--verde">{{ centavosAPesos(d.saldoActual) }}</span>
+          </div>
+
+          <button v-if="!pagoAbierto" class="pago-deuda__abrir" @click="abrirPago">
+            Pagar con mi saldo
+          </button>
+
+          <div v-else class="pago-deuda">
+            <p class="pago-deuda__intro">
+              ¿Cuánto quieres abonar? Se descuenta de tu saldo a favor.
+            </p>
+            <div class="pago-deuda__campo">
+              <span class="pago-deuda__moneda">$</span>
+              <input
+                v-model="montoInput"
+                class="pago-deuda__input"
+                type="text"
+                inputmode="decimal"
+                :disabled="pagoTrabajando"
+                @input="sanitizarMonto"
+              />
+              <button
+                type="button"
+                class="pago-deuda__todo"
+                :disabled="pagoTrabajando"
+                @click="ponerMaximo"
+              >
+                Saldar todo
+              </button>
+            </div>
+            <p class="pago-deuda__max">
+              Máximo: {{ centavosAPesos(maxPagableCentavos) }}
+            </p>
+            <div class="pago-deuda__acciones">
+              <button
+                type="button"
+                class="pago-deuda__cancelar"
+                :disabled="pagoTrabajando"
+                @click="cerrarPago"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                class="pago-deuda__confirmar"
+                :disabled="pagoTrabajando || !montoValido"
+                @click="confirmarPago"
+              >
+                <span v-if="pagoTrabajando">Procesando…</span>
+                <span v-else-if="montoValido">Pagar {{ centavosAPesos(montoCentavos) }}</span>
+                <span v-else>Pagar</span>
+              </button>
+            </div>
+            <p v-if="pagoMsg" class="pago-deuda__error">{{ pagoMsg }}</p>
+          </div>
+        </template>
       </section>
 
       <!-- Notificaciones push -->
@@ -728,4 +864,106 @@ async function cerrarSesion() {
 .perfil-link__t { font-size: 0.98rem; font-weight: 700; color: var(--text); }
 .perfil-link__d { font-size: 0.8rem; color: var(--text-dim); }
 .perfil-link__arrow { color: var(--text-faint); flex-shrink: 0; display: flex; }
+
+/* --- Pagar deuda con saldo a favor --- */
+.pago-deuda__abrir {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--grad-firma);
+  box-shadow: 0 6px 16px var(--accent-glow);
+  transition: opacity 0.18s ease, transform 0.12s ease;
+}
+.pago-deuda__abrir:active { transform: scale(0.99); opacity: 0.92; }
+
+.pago-deuda {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pago-deuda__intro { margin: 0; font-size: 0.86rem; color: var(--text-dim); }
+.pago-deuda__campo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-3, var(--bg-elev));
+  transition: border-color 0.15s ease;
+}
+.pago-deuda__campo:focus-within { border-color: var(--accent); }
+.pago-deuda__moneda { font-weight: 800; color: var(--text-dim); font-size: 1.05rem; }
+.pago-deuda__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 700;
+  padding: 8px 0;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+}
+.pago-deuda__todo {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  transition: opacity 0.15s ease;
+}
+.pago-deuda__todo:disabled { opacity: 0.5; }
+.pago-deuda__max { margin: 0; font-size: 0.78rem; color: var(--text-faint); }
+.pago-deuda__acciones { display: flex; gap: 10px; margin-top: 2px; }
+.pago-deuda__cancelar {
+  flex: 1;
+  padding: 11px;
+  border-radius: var(--r-md);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  transition: opacity 0.15s ease;
+}
+.pago-deuda__cancelar:disabled { opacity: 0.5; }
+.pago-deuda__confirmar {
+  flex: 2;
+  padding: 11px;
+  border-radius: var(--r-md);
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #fff;
+  background: var(--grad-firma);
+  box-shadow: 0 6px 16px var(--accent-glow);
+  transition: opacity 0.18s ease, transform 0.12s ease;
+}
+.pago-deuda__confirmar:active { transform: scale(0.99); }
+.pago-deuda__confirmar:disabled { opacity: 0.5; box-shadow: none; }
+.pago-deuda__error { margin: 0; font-size: 0.84rem; color: var(--danger, #ef4444); }
+
+.pago-ok {
+  padding: 14px 16px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--success);
+  border: 1px solid var(--success-soft, var(--success));
+  background: var(--success-soft, transparent);
+  text-align: center;
+}
 </style>
