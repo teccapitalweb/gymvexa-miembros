@@ -9,14 +9,24 @@ import {
   getRedirectResult,
   signOut,
   onAuthStateChanged,
+  onIdTokenChanged,
   sendEmailVerification,
 } from 'firebase/auth'
-import { auth, googleProvider } from '../firebase'
+import { auth, googleProvider, limpiarCacheFirestore } from '../firebase'
 
 // Clave donde guardamos el destino post-login ANTES de redirigir a Google. El
 // redirect de página completa borra la query del router (?redirect/?c=), así que
 // lo persistimos aquí y lo restauramos al volver (getRedirectResult).
 const CLAVE_DESTINO = 'post-login-redirect'
+
+// Aviso que mostramos en el login TRAS una desvinculación (sobrevive la recarga).
+const CLAVE_AVISO_DESVINCULADO = 'aviso-desvinculado'
+
+// Banderas de guardia (fuera del state: no necesitan ser reactivas y evitan
+// warnings de Pinia). Igual que socio.js hace con su listener.
+let _revalidando = false        // evita revalidaciones solapadas (force refresh)
+let _desvinculando = false      // evita reentrar al manejo de desvinculación
+let _revalidadoArranque = false // solo forzamos una revalidación al arrancar
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -53,7 +63,110 @@ export const useAuthStore = defineStore('auth', {
           this.claims = {}
         }
         this.authReady = true
+        // Al conocer la sesión por 1ª vez, si la app lo cree VINCULADO revalidamos
+        // contra el servidor (force refresh) por si lo desvincularon con la app
+        // cerrada. Solo una vez y solo si hay claim (no molesta al flujo de vincular).
+        if (user && this.tieneClaimSocio && !_revalidadoArranque) {
+          _revalidadoArranque = true
+          this.revalidarClaim()
+        }
       })
+
+      // NUEVO (Tema 2): escucha cambios/refrescos del ID token. Si un socio que la
+      // app tenía por VINCULADO recibe un token nuevo SIN el claim (gymId/socioId),
+      // fue desvinculado. Compara el estado PREVIO (antes de releer) con el nuevo,
+      // así un recién logueado que aún no tiene claim NO se toma por desvinculado.
+      onIdTokenChanged(auth, async (user) => {
+        if (!user) return
+        const previoVinculado = this.tieneClaimSocio
+        await this._cargarClaims(user, false)
+        if (previoVinculado && !this.tieneClaimSocio) {
+          // El claim desapareció en un refresco legítimo del token: desvinculado
+          // pero la sesión sigue viva -> lo mandamos a re-vincular sin cerrar sesión.
+          await this._manejarDesvinculado(true)
+        }
+      })
+
+      // NUEVO (Tema 2): al volver la app al primer plano, revalida con force refresh.
+      // Es el disparador principal: detecta la desvinculación en cuanto el socio
+      // reabre/enfoca la app, sin esperar al refresco automático (~1h) del token.
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') this.revalidarClaim()
+        })
+      }
+    },
+
+    // Revalida el claim de socio contra el SERVIDOR (force refresh). Detecta la
+    // desvinculación aunque el token cacheado aún la traiga. Sin falsos positivos:
+    //  - Solo revalida a quien la app YA cree vinculado (evita tocar el flujo de
+    //    vincular, donde es normal no tener claim todavía).
+    //  - Un error de RED nunca expulsa (mala señal en el gym no es desvinculación).
+    async revalidarClaim() {
+      const user = auth.currentUser
+      if (!user) return
+      if (!this.tieneClaimSocio) return
+      if (_revalidando || _desvinculando) return
+      _revalidando = true
+      try {
+        // force=true: si el backend revocó los refresh tokens, esto LANZA; si solo
+        // quitó el claim, devuelve un token válido pero SIN gymId/socioId.
+        const res = await user.getIdTokenResult(true)
+        const c = res?.claims ?? {}
+        if (c.gymId && c.socioId) {
+          this.claims = c // sigue vinculado: sincroniza claims (no expulsa)
+        } else {
+          await this._manejarDesvinculado(true) // claim quitado, sesión viva
+        }
+      } catch (e) {
+        // Solo tratamos como desvinculación los errores de CREDENCIAL/usuario
+        // (tokens revocados, cuenta deshabilitada…), NUNCA los de red.
+        const code = e?.code || ''
+        const esRevocacion =
+          code === 'auth/user-token-expired' ||
+          code === 'auth/user-token-revoked' ||
+          code === 'auth/invalid-user-token' ||
+          code === 'auth/user-disabled' ||
+          code === 'auth/user-not-found'
+        if (esRevocacion) {
+          await this._manejarDesvinculado(false) // sesión muerta: cerrar sesión
+        }
+        // Red u otro (auth/network-request-failed, etc.): no hacer nada.
+      } finally {
+        _revalidando = false
+      }
+    },
+
+    // Maneja la desvinculación detectada. `sesionValida`:
+    //  - true : el claim se quitó pero el token/sesión siguen vivos -> conservamos
+    //           la sesión y lo llevamos a /vincular (escanear código de nuevo).
+    //  - false: los refresh tokens fueron revocados -> cerramos sesión y lo
+    //           llevamos a /login (deberá entrar de nuevo y luego re-vincular).
+    // En ambos casos: baja el listener del socio, limpia la caché offline y hace
+    // una recarga DURA para arrancar con un estado 100% limpio.
+    async _manejarDesvinculado(sesionValida) {
+      if (_desvinculando) return
+      _desvinculando = true
+      // No hace falta resetear el store del socio a mano: la recarga DURA de abajo
+      // borra toda la memoria de la app y terminate() (en limpiarCacheFirestore)
+      // cancela sus listeners. Así evitamos también un import circular auth<->socio.
+      if (!sesionValida) {
+        try {
+          await signOut(auth)
+        } catch {
+          // signOut es local; si falla, la recarga dura igual deja sin sesión útil.
+        }
+        this.user = null
+      }
+      this.claims = {}
+      try {
+        sessionStorage.setItem(CLAVE_AVISO_DESVINCULADO, '1')
+      } catch {
+        // sin sessionStorage: nos saltamos el aviso, la reacción principal ocurre igual.
+      }
+      // Limpia IndexedDB (best-effort) y recarga a un estado limpio.
+      await limpiarCacheFirestore()
+      window.location.assign(sesionValida ? '/vincular' : '/login')
     },
 
     // Lee los custom claims del ID token (sin/con refresco forzado).

@@ -12,6 +12,8 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  terminate,
+  clearIndexedDbPersistence,
 } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getMessaging, isSupported } from 'firebase/messaging'
@@ -40,6 +42,22 @@ export const db = initializeFirestore(app, {
     tabManager: persistentMultipleTabManager(),
   }),
 })
+
+// Limpia la caché offline (IndexedDB) de Firestore. Se usa al detectar que el
+// socio fue DESVINCULADO, para que no queden datos del socio anterior en el
+// dispositivo. Es de MEJOR ESFUERZO: clearIndexedDbPersistence exige que el
+// cliente esté terminado y que ninguna otra pestaña lo tenga abierto; si algo
+// falla (p. ej. otra pestaña activa) no lanzamos —quien llama recarga la app
+// enseguida a un estado limpio de memoria de todos modos—. Tras terminate(),
+// `db` queda inutilizable: SIEMPRE recargar la página después de llamar aquí.
+export async function limpiarCacheFirestore() {
+  try {
+    await terminate(db)
+    await clearIndexedDbPersistence(db)
+  } catch {
+    // Best-effort: la recarga posterior deja la app en un estado limpio igual.
+  }
+}
 
 // Storage (imágenes del foro). El bucket es el de storageBucket de arriba.
 export const storage = getStorage(app)

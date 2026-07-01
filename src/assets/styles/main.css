@@ -545,6 +545,12 @@ svg {
   color: #ffb3bf;
 }
 
+.alert--info {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
 .spin {
   animation: spin 0.8s linear infinite;
 }
