@@ -26,7 +26,12 @@ const CLAVE_AVISO_DESVINCULADO = 'aviso-desvinculado'
 // warnings de Pinia). Igual que socio.js hace con su listener.
 let _revalidando = false        // evita revalidaciones solapadas (force refresh)
 let _desvinculando = false      // evita reentrar al manejo de desvinculación
-let _revalidadoArranque = false // solo forzamos una revalidación al arrancar
+// true SOLO cuando esta sesión de app estableció una sesión vinculada REAL (claim
+// presente Y ficha del socio cargada — el estado normal de un socio usándola). Es
+// la condición para REACCIONAR a una desvinculación (Caso A). Un socio que vuelve
+// a entrar ya desvinculado (Caso B) nunca la pone en true -> NO se le expulsa; el
+// guard lo manda limpio a /vincular. Lo marca socio.js al cargar la ficha.
+let _sesionVinculadaActiva = false
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -63,13 +68,14 @@ export const useAuthStore = defineStore('auth', {
           this.claims = {}
         }
         this.authReady = true
-        // Al conocer la sesión por 1ª vez, si la app lo cree VINCULADO revalidamos
-        // contra el servidor (force refresh) por si lo desvincularon con la app
-        // cerrada. Solo una vez y solo si hay claim (no molesta al flujo de vincular).
-        if (user && this.tieneClaimSocio && !_revalidadoArranque) {
-          _revalidadoArranque = true
-          this.revalidarClaim()
-        }
+        // (QUITADO) Antes aquí se forzaba una revalidación al arrancar en cuanto el
+        // token cacheado mostraba el claim. Se eliminó porque EXPULSABA a /login a un
+        // socio desvinculado que vuelve a entrar (Caso B): con los refresh tokens
+        // revocados, el force refresh lanzaba -> _manejarDesvinculado(false) -> signOut.
+        // Al arrancar sin claim, el guard ya manda al logueado-sin-claim a /vincular
+        // (router/index.js:142-143). La reacción EN VIVO a la desvinculación (Caso A)
+        // la cubren onIdTokenChanged y la revalidación al volver al primer plano,
+        // ambas gateadas por _sesionVinculadaActiva.
       })
 
       // NUEVO (Tema 2): escucha cambios/refrescos del ID token. Si un socio que la
@@ -105,6 +111,10 @@ export const useAuthStore = defineStore('auth', {
     async revalidarClaim() {
       const user = auth.currentUser
       if (!user) return
+      // Solo reaccionamos si ESTA sesión de app estableció una sesión vinculada
+      // confirmada (Caso A). Un socio que vuelve a entrar ya desvinculado (Caso B)
+      // no la tiene -> no se le expulsa; el guard lo lleva a /vincular.
+      if (!_sesionVinculadaActiva) return
       if (!this.tieneClaimSocio) return
       if (_revalidando || _desvinculando) return
       _revalidando = true
@@ -167,6 +177,14 @@ export const useAuthStore = defineStore('auth', {
       // Limpia IndexedDB (best-effort) y recarga a un estado limpio.
       await limpiarCacheFirestore()
       window.location.assign(sesionValida ? '/vincular' : '/login')
+    },
+
+    // Marca que ESTA sesión de app ya estableció una sesión vinculada REAL (claim
+    // presente + ficha del socio cargada). La llama socio.js cuando resuelve la
+    // ficha por el camino del claim. A partir de aquí SÍ reaccionamos a una
+    // desvinculación en vivo (Caso A). Antes de esto (Caso B: aún por vincular) no.
+    marcarSesionVinculadaActiva() {
+      _sesionVinculadaActiva = true
     },
 
     // Lee los custom claims del ID token (sin/con refresco forzado).
@@ -265,6 +283,9 @@ export const useAuthStore = defineStore('auth', {
         await signOut(auth)
         this.user = null
         this.claims = {}
+        // Al cerrar sesión ya no hay sesión vinculada confirmada: si otro socio
+        // entra en el mismo SPA (sin recarga), no debe heredar la bandera.
+        _sesionVinculadaActiva = false
       } finally {
         this.cargando = false
       }

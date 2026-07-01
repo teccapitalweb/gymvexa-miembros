@@ -94,6 +94,9 @@ export const useSocioStore = defineStore('socio', {
           const snap = await getDoc(ref)
           if (snap.exists()) {
             this.datos = { id: snap.id, ...snap.data() }
+            // Sesión vinculada CONFIRMADA (claim presente + ficha cargada): a partir
+            // de aquí la app SÍ debe reaccionar si lo desvinculan en vivo (Caso A).
+            auth.marcarSesionVinculadaActiva()
           }
           this.claimOk = true
           this.claimEstado = 'ok'
