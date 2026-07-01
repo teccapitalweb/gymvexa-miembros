@@ -257,11 +257,40 @@ export const useAuthStore = defineStore('auth', {
       } catch (e) {
         // Error real del redirect (config de dominio, red, etc.). Lo guardamos
         // para que LoginView pueda mostrarlo si el socio queda en el login.
+        console.error('[login] getRedirectResult lanzó error:', e)
         this.errorRedirect = e
         this.cargando = false
         return null
       }
-      if (!res || !res.user) return null
+      if (!res || !res.user) {
+        // getRedirectResult vino null. Si NO veníamos de un redirect (arranque
+        // normal), es lo esperado: no dejamos rastro. Pero si SÍ habíamos guardado
+        // un destino antes de redirigir a Google (loginGoogle) y aun así volvió
+        // null, la sesión NO se completó -> típico bloqueo de storage de terceros
+        // en móvil/PWA/Safari. Lo dejamos anotado para diagnosticar en producción.
+        let veniaDeRedirect = false
+        try {
+          veniaDeRedirect = !!sessionStorage.getItem(CLAVE_DESTINO)
+        } catch {
+          veniaDeRedirect = false
+        }
+        if (veniaDeRedirect) {
+          console.error(
+            '[login] getRedirectResult vino null tras un redirect: la sesión no se completó (posible bloqueo de storage de terceros en móvil/PWA/Safari; revisar authDomain).',
+          )
+          this.errorRedirect = new Error(
+            'No pudimos completar el inicio de sesión con Google. Vuelve a intentarlo.',
+          )
+          // Limpiamos el destino huérfano para no arrastrarlo a un intento futuro.
+          try {
+            sessionStorage.removeItem(CLAVE_DESTINO)
+          } catch {
+            /* noop */
+          }
+        }
+        this.cargando = false
+        return null
+      }
 
       this.user = res.user
       await this._cargarClaims(res.user, false)

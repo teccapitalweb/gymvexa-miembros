@@ -19,18 +19,26 @@ initTema()
 // para que el guard pueda esperar a authReady.
 useAuthStore().init()
 
+// Login con Google por redirect: procesamos el RETORNO de Google ANTES de montar
+// el router. Así, cuando corra el primer guard, la sesión (si getRedirectResult
+// trajo user) YA está establecida -> el guard de /login mueve al usuario a
+// inicio/vincular, en vez de dejarlo atorado en el login por una carrera con el
+// router. NO tragamos errores: procesarRedirectGoogle deja rastro (console.error +
+// errorRedirect) que LoginView muestra si el redirect falló (p. ej. getRedirectResult
+// null por bloqueo de storage en móvil/PWA).
+let destinoPostLogin = null
+try {
+  destinoPostLogin = await useAuthStore().procesarRedirectGoogle()
+} catch (e) {
+  // Fallo inesperado (no el null esperado): lo dejamos visible para diagnóstico.
+  console.error('[login] Fallo inesperado procesando el redirect de Google:', e)
+}
+
 app.use(router)
 app.mount('#app')
 
-// Login con Google por redirect: cuando el socio vuelve de Google, completamos
-// el login y lo llevamos al destino que había guardado antes de redirigir (p. ej.
-// /vincular?c=CODIGO). Si no venía de un redirect, no hace nada.
-useAuthStore()
-  .procesarRedirectGoogle()
-  .then((destino) => {
-    if (destino) router.replace(destino)
-  })
-  .catch(() => {})
+// Si veníamos de Google con la sesión ya completada, vamos al destino guardado.
+if (destinoPostLogin) router.replace(destinoPostLogin)
 
 // Registra el service worker (PWA) solo en producción, para no interferir con
 // el HMR de Vite en desarrollo. Hace la app instalable y de carga rápida.

@@ -21,7 +21,12 @@ const aviso = ref('')
 // el error quedó guardado en el store. Lo mostramos aquí y lo limpiamos.
 onMounted(() => {
   if (auth.errorRedirect) {
-    error.value = mensajeError(auth.errorRedirect)
+    // Si es un error de Firebase (tiene .code) lo traducimos; si es un error
+    // nuestro con mensaje propio (p. ej. getRedirectResult vino null), mostramos
+    // ese mensaje directo para que se vea el problema en vez de fallar en silencio.
+    error.value = auth.errorRedirect.code
+      ? mensajeError(auth.errorRedirect)
+      : auth.errorRedirect.message || mensajeError(auth.errorRedirect)
     auth.errorRedirect = null
   }
   try {
