@@ -34,6 +34,14 @@ const codigoInput = ref('')          // lo que el socio teclea (formato XXXX-XXX
 const mostrarManual = ref(false)     // panel "Tengo un código"
 const exitoMensaje = ref('')         // mensaje de éxito (del backend o genérico)
 
+// Rescate "email no verificado": el backend (verificarIdToken) responde 403 si el
+// correo de la cuenta NO está verificado. En ese caso mostramos acciones para
+// reenviar el correo de verificación y reintentar, en vez de dejar al socio atorado.
+const errorEmailNoVerificado = ref(false)
+const reenviando = ref(false)         // enviando el correo de verificación
+const reenviado = ref(false)          // ya se envió (feedback)
+const reenvioError = ref('')          // error al reenviar
+
 // --- Cámara (motor robusto compartido con CheckinView) ---
 const ID_LECTOR = 'qr-lector-vincular'
 const scanner = useQrScanner(ID_LECTOR)
@@ -82,6 +90,9 @@ onMounted(async () => {
 // Intenta vincular con un código (normaliza y valida 8 chars).
 async function intentarVincular(codigo) {
   error.value = ''
+  errorEmailNoVerificado.value = false
+  reenviado.value = false
+  reenvioError.value = ''
   const norm = normalizarCodigo(codigo)
   if (norm.length !== 8) {
     error.value = 'El código debe tener 8 caracteres (formato XXXX-XXXX).'
@@ -108,6 +119,9 @@ async function intentarVincular(codigo) {
     setTimeout(() => router.replace('/inicio'), 1500)
   } catch (e) {
     error.value = e?.message || 'No pudimos vincular tu cuenta. Inténtalo de nuevo.'
+    // El endpoint de vincular solo devuelve 403 cuando el correo no está
+    // verificado (verificarIdToken). En ese caso ofrecemos reenviar + reintentar.
+    errorEmailNoVerificado.value = e?.status === 403
     fase.value = 'form'
     mostrarManual.value = true
   }
@@ -116,6 +130,29 @@ async function intentarVincular(codigo) {
 // Vincula con el código tecleado a mano.
 async function vincularManual() {
   await intentarVincular(codigoInput.value)
+}
+
+// Reenvía el correo de verificación (rescate del caso 403 email no verificado).
+// Reusa auth.reenviarVerificacion() (ya existente en el store).
+async function reenviarVerificacion() {
+  reenvioError.value = ''
+  reenviando.value = true
+  try {
+    await auth.reenviarVerificacion()
+    reenviado.value = true
+  } catch (e) {
+    reenvioError.value =
+      e?.message || 'No pudimos reenviar el correo. Inténtalo de nuevo.'
+  } finally {
+    reenviando.value = false
+  }
+}
+
+// "Ya verifiqué, reintentar": fuerza refrescar el token (para que refleje
+// email_verified:true tras verificar) y reintenta la vinculación con el código.
+async function reintentarTrasVerificar() {
+  await auth.refrescarClaims(true)
+  await vincularManual()
 }
 
 // ----------------------------- Cámara / QR -----------------------------
@@ -257,6 +294,53 @@ onBeforeUnmount(async () => {
           <circle cx="12" cy="12" r="9" /><path d="M12 8v5" /><path d="M12 16h.01" />
         </svg>
         <span>{{ error }}</span>
+      </div>
+
+      <!-- Rescate: correo NO verificado (403). Solo aparece en ESE caso. -->
+      <div v-if="error && errorEmailNoVerificado" class="card verif">
+        <p class="verif__texto">
+          Para vincular tu cuenta primero verifica tu correo. Te enviamos un
+          enlace: ábrelo, verifica, y vuelve a intentar aquí.
+        </p>
+
+        <p v-if="reenviado" class="verif__ok">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          <span>Te enviamos un correo de verificación. Revisa tu bandeja (y spam).</span>
+        </p>
+        <p v-if="reenvioError" class="verif__err">{{ reenvioError }}</p>
+
+        <button
+          class="btn btn--primary"
+          :disabled="reenviando"
+          @click="reenviarVerificacion"
+        >
+          <svg v-if="reenviando" class="spin" width="20" height="20" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <path d="M21 12a9 9 0 1 1-6.2-8.5" />
+          </svg>
+          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="5" width="18" height="14" rx="2.5" />
+            <path d="m3.5 7 8.5 6 8.5-6" />
+          </svg>
+          <span>{{ reenviando ? 'Enviando…' : (reenviado ? 'Reenviar de nuevo' : 'Reenviar correo de verificación') }}</span>
+        </button>
+
+        <button
+          class="btn btn--ghost"
+          :disabled="fase === 'vinculando'"
+          @click="reintentarTrasVerificar"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 4v6h-6" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </svg>
+          <span>Ya verifiqué, reintentar</span>
+        </button>
       </div>
 
       <!-- Botón escanear / detener -->
@@ -510,6 +594,32 @@ onBeforeUnmount(async () => {
 .input--codigo::placeholder {
   letter-spacing: 0.2em;
   font-weight: 600;
+}
+
+/* Bloque de rescate: correo no verificado (403) */
+.verif {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+.verif__texto {
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.verif__ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--success);
+  font-size: 0.88rem;
+}
+.verif__err {
+  color: var(--danger, #ef4444);
+  font-size: 0.88rem;
 }
 
 /* Enlace cerrar sesión / usar otra cuenta */
