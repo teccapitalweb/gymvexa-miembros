@@ -26,6 +26,7 @@ const CLAVE_AVISO_DESVINCULADO = 'aviso-desvinculado'
 // warnings de Pinia). Igual que socio.js hace con su listener.
 let _revalidando = false        // evita revalidaciones solapadas (force refresh)
 let _desvinculando = false      // evita reentrar al manejo de desvinculación
+let _revalidadoArranque = false // solo UNA revalidación de arranque por carga (anti-bucle)
 // true SOLO cuando esta sesión de app estableció una sesión vinculada REAL (claim
 // presente Y ficha del socio cargada — el estado normal de un socio usándola). Es
 // la condición para REACCIONAR a una desvinculación (Caso A). Un socio que vuelve
@@ -68,14 +69,17 @@ export const useAuthStore = defineStore('auth', {
           this.claims = {}
         }
         this.authReady = true
-        // (QUITADO) Antes aquí se forzaba una revalidación al arrancar en cuanto el
-        // token cacheado mostraba el claim. Se eliminó porque EXPULSABA a /login a un
-        // socio desvinculado que vuelve a entrar (Caso B): con los refresh tokens
-        // revocados, el force refresh lanzaba -> _manejarDesvinculado(false) -> signOut.
-        // Al arrancar sin claim, el guard ya manda al logueado-sin-claim a /vincular
-        // (router/index.js:142-143). La reacción EN VIVO a la desvinculación (Caso A)
-        // la cubren onIdTokenChanged y la revalidación al volver al primer plano,
-        // ambas gateadas por _sesionVinculadaActiva.
+        // Revalidación de ARRANQUE (suave): si el token CACHEADO trae claim,
+        // confirmamos contra el servidor por si al socio lo desvincularon con la app
+        // cerrada. Al reabrir con sesión persistida, _cargarClaims(false) lee el
+        // token cacheado que AÚN trae el claim viejo (~1h) -> sin esto, el socio
+        // desvinculado seguiría ENTRANDO. Se gatea por el CLAIM CACHEADO
+        // (tieneClaimSocio), NO por _sesionVinculadaActiva (que al arrancar es false):
+        // por eso NO afecta a un re-login FRESCO (Caso B), que llega SIN claim -> no
+        // se dispara -> el guard lo lleva limpio a /vincular. Reacción SUAVE (abajo).
+        if (user && this.tieneClaimSocio) {
+          this._revalidarClaimArranque()
+        }
       })
 
       // NUEVO (Tema 2): escucha cambios/refrescos del ID token. Si un socio que la
@@ -142,6 +146,57 @@ export const useAuthStore = defineStore('auth', {
           await this._manejarDesvinculado(false) // sesión muerta: cerrar sesión
         }
         // Red u otro (auth/network-request-failed, etc.): no hacer nada.
+      } finally {
+        _revalidando = false
+      }
+    },
+
+    // Revalidación de ARRANQUE (una sola vez por carga). A diferencia de
+    // revalidarClaim() —que se gatea por _sesionVinculadaActiva para el Caso A en
+    // vivo (visibilitychange)—, ESTA se gatea por el CLAIM CACHEADO y corre al abrir
+    // la app, para detectar que al socio lo desvincularon con la app cerrada. Como
+    // exige claim cacheado, un re-login FRESCO (sin claim) NO la dispara -> Caso B
+    // intacto. Reacción SUAVE: claim quitado (sesión viva) -> /vincular sin signOut;
+    // tokens revocados (sesión muerta) -> signOut -> /login con aviso claro.
+    async _revalidarClaimArranque() {
+      const user = auth.currentUser
+      if (!user) return
+      if (!this.tieneClaimSocio) return // sin claim cacheado: nada que revalidar
+      if (_revalidadoArranque || _revalidando || _desvinculando) return
+      _revalidadoArranque = true // anti-bucle: una sola revalidación por arranque
+      _revalidando = true
+      try {
+        // force=true: contra el servidor. Si el backend revocó los refresh tokens,
+        // LANZA; si solo quitó el claim, devuelve token válido pero sin gymId/socioId.
+        const res = await user.getIdTokenResult(true)
+        const c = res?.claims ?? {}
+        if (c.gymId && c.socioId) {
+          this.claims = c // sigue vinculado de verdad -> sigue a /inicio normal
+        } else {
+          // Claim quitado, sesión aún viva -> a /vincular, SIN signOut (suave). El
+          // force refresh ya dejó cacheado el token SIN claim, así que al recargar
+          // tieneClaimSocio será false y NO se vuelve a disparar (no hay bucle).
+          this.claims = {}
+          await this._manejarDesvinculado(true)
+        }
+      } catch (e) {
+        // Solo tratamos como desvinculación los errores de CREDENCIAL/usuario
+        // (tokens revocados, cuenta deshabilitada…), NUNCA los de red.
+        const code = e?.code || ''
+        const esRevocacion =
+          code === 'auth/user-token-expired' ||
+          code === 'auth/user-token-revoked' ||
+          code === 'auth/invalid-user-token' ||
+          code === 'auth/user-disabled' ||
+          code === 'auth/user-not-found'
+        if (esRevocacion) {
+          // Sesión MUERTA: limpiamos el claim y cerramos sesión -> /login con aviso,
+          // para que re-loguee con un token fresco válido y caiga en /vincular. El
+          // signOut evita que al recargar vuelva a dispararse (no hay bucle).
+          this.claims = {}
+          await this._manejarDesvinculado(false)
+        }
+        // Red u otro (auth/network-request-failed): no expulsar (no es desvinculación).
       } finally {
         _revalidando = false
       }
