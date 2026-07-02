@@ -8,18 +8,18 @@ import { useSocioStore } from '../stores/socio'
 const routes = [
   { path: '/', redirect: '/inicio' },
   {
+    // Pantalla ÚNICA de acceso con pestañas internas "Iniciar sesión" / "Crear
+    // cuenta" (AccesoView). Acepta ?tab=login|crear para abrir en una pestaña.
     path: '/login',
     name: 'login',
-    component: () => import('../views/LoginView.vue'),
+    component: () => import('../views/AccesoView.vue'),
     meta: { publica: true },
   },
   {
-    // Registro propio (crear cuenta con correo/contraseña). Pública, igual que
-    // /login. Tras registrarse, el socio pasa a /vincular para escanear su QR.
+    // Compat: /registro ahora vive dentro de /login como pestaña "Crear cuenta".
+    // Redirigimos para no romper enlaces existentes, abriendo esa pestaña.
     path: '/registro',
-    name: 'registro',
-    component: () => import('../views/RegistroView.vue'),
-    meta: { publica: true },
+    redirect: () => ({ name: 'login', query: { tab: 'crear' } }),
   },
   {
     // Pantalla pública "Instala la app": pensada para llegar por QR pegado en el
