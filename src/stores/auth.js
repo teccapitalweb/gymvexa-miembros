@@ -5,6 +5,8 @@
 import { defineStore } from 'pinia'
 import {
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signInWithRedirect,
   getRedirectResult,
   signOut,
@@ -13,6 +15,7 @@ import {
   sendEmailVerification,
 } from 'firebase/auth'
 import { auth, googleProvider, limpiarCacheFirestore } from '../firebase'
+import { guardarDatosRegistro } from '../services/backend'
 
 // Clave donde guardamos el destino post-login ANTES de redirigir a Google. El
 // redirect de página completa borra la query del router (?redirect/?c=), así que
@@ -270,6 +273,67 @@ export const useAuthStore = defineStore('auth', {
         this.user = cred.user
         // Cargamos claims ya mismo para que el guard del router decida bien
         // el destino inmediatamente después del login.
+        await this._cargarClaims(cred.user, false)
+        return cred.user
+      } finally {
+        this.cargando = false
+      }
+    },
+
+    // Crea una cuenta NUEVA con correo/contraseña (registro propio del socio).
+    // Google se conserva tal cual; esto se SUMA como otra forma de entrar. Guarda el
+    // buzón de datos (nombre/teléfono/contraseña) en el backend para que, al
+    // vincular por QR, se rellene teléfono y contraseña en la ficha del gym (el
+    // NOMBRE de la ficha lo pone recepción y NO se toca). Sigue el patrón de
+    // loginCorreo/loginGoogle: cargando true/false en finally.
+    async registrarCorreo({ nombre, telefono, correo, password }) {
+      this.cargando = true
+      try {
+        let cred
+        try {
+          cred = await createUserWithEmailAndPassword(auth, correo, password)
+        } catch (e) {
+          // Auto-recuperación de reintento: si el correo YA tiene cuenta, puede ser
+          // que un intento PREVIO creara la cuenta pero fallara al guardar el buzón.
+          // Probamos a iniciar sesión con el MISMO correo/contraseña:
+          //  - si funciona, es la cuenta del propio socio -> seguimos el flujo normal
+          //    (guardar buzón, idempotente por merge) y el reintento se auto-cura.
+          //  - si falla, el correo es de OTRA persona (o se creó con Google, sin
+          //    contraseña) -> propagamos el error ORIGINAL (auth/email-already-in-use)
+          //    para que la vista muestre "Ese correo ya tiene una cuenta. Inicia
+          //    sesión." con el enlace a /login.
+          if (e?.code === 'auth/email-already-in-use') {
+            try {
+              cred = await signInWithEmailAndPassword(auth, correo, password)
+            } catch {
+              throw e
+            }
+          } else {
+            throw e
+          }
+        }
+        this.user = cred.user
+
+        // Nombre visible de la cuenta de Auth (cosmético). NO es el nombre de la
+        // ficha del socio: ese lo captura la recepcionista y manda. No bloqueante.
+        try {
+          await updateProfile(cred.user, { displayName: nombre })
+        } catch {
+          // Un fallo aquí (cosmético) no debe tumbar el registro.
+        }
+
+        // Buzón de datos del registro en el backend (Admin SDK). Se guarda aunque el
+        // correo aún no esté verificado (el endpoint usa un middleware que no lo exige).
+        await guardarDatosRegistro({ nombre, telefono, password })
+
+        // Correo de verificación: NO bloqueante (un fallo aquí no tumba el registro).
+        try {
+          await sendEmailVerification(cred.user)
+        } catch {
+          // No crítico: el socio puede reenviarlo luego desde la pantalla de vincular.
+        }
+
+        // Carga los claims ya mismo para que el guard del router decida el destino.
         await this._cargarClaims(cred.user, false)
         return cred.user
       } finally {

@@ -14,6 +14,14 @@ const routes = [
     meta: { publica: true },
   },
   {
+    // Registro propio (crear cuenta con correo/contraseña). Pública, igual que
+    // /login. Tras registrarse, el socio pasa a /vincular para escanear su QR.
+    path: '/registro',
+    name: 'registro',
+    component: () => import('../views/RegistroView.vue'),
+    meta: { publica: true },
+  },
+  {
     // Pantalla pública "Instala la app": pensada para llegar por QR pegado en el
     // gym. No requiere login (alguien que aún no es socio puede instalar la PWA).
     path: '/instalar',

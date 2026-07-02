@@ -18,6 +18,10 @@ const BACKEND_URL = (
 const ENDPOINT_VINCULAR = `${BACKEND_URL}/api/vincular-socio`
 // Vinculación POR CÓDIGO (QR / tecleado) que genera el panel en la ficha del socio.
 const ENDPOINT_VINCULAR_CODIGO = `${BACKEND_URL}/api/socios/vincular`
+// Buzón de datos del REGISTRO propio (correo/contraseña): al crear la cuenta el
+// socio manda nombre/teléfono/contraseña; el backend los guarda para rellenar la
+// ficha (teléfono y contraseña) cuando el socio vincule por QR.
+const ENDPOINT_DATOS_REGISTRO = `${BACKEND_URL}/api/socios/datos-registro`
 // Check-in del socio: el backend (Admin SDK) registra la asistencia de forma
 // segura (valida membresía/anti-duplicado) SIN que el cliente toque Firestore.
 const ENDPOINT_CHECKIN = `${BACKEND_URL}/api/socios/checkin`
@@ -277,6 +281,72 @@ export async function vincularSocioPorCodigo(codigo) {
     status: res.status,
     data,
   })
+}
+
+// --------------------------------------------------------------------------
+// Buzón de datos del registro propio (correo/contraseña).
+// --------------------------------------------------------------------------
+
+/**
+ * Guarda en el backend los datos del REGISTRO propio del socio (nombre, teléfono y
+ * contraseña) en el buzón datosRegistro/{uid}. Al vincular por QR, el backend
+ * rellena teléfono y contraseña en la ficha del gym (el NOMBRE de la ficha lo pone
+ * recepción y NO se toca). POST /api/socios/datos-registro con Bearer <idToken>.
+ *
+ * El endpoint NO exige correo verificado (se llama justo al registrarse), pero el
+ * uid SIEMPRE sale del token en el servidor.
+ *
+ * @param {{ nombre: string, telefono: string, password: string }} datos
+ * @returns {Promise<{ ok: true }>}
+ * @throws {Error} con `.status` y `.message` legible si falla.
+ */
+export async function guardarDatosRegistro({ nombre, telefono, password }) {
+  const user = auth.currentUser
+  if (!user) {
+    throw errorBackend('No hay una sesión activa. Vuelve a iniciar sesión.', {
+      status: 401,
+    })
+  }
+
+  let idToken
+  try {
+    idToken = await user.getIdToken()
+  } catch {
+    throw errorBackend('No pudimos validar tu sesión. Inténtalo de nuevo.', {
+      status: 401,
+    })
+  }
+
+  let res
+  try {
+    res = await fetch(ENDPOINT_DATOS_REGISTRO, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ nombre, telefono, password }),
+    })
+  } catch {
+    throw errorBackend(
+      'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+      { red: true },
+    )
+  }
+
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+
+  if (res.ok && data?.ok) return { ok: true }
+
+  throw errorBackend(
+    data?.error || data?.mensaje || 'No se pudieron guardar tus datos. Inténtalo de nuevo.',
+    { status: res.status, data },
+  )
 }
 
 // --------------------------------------------------------------------------
